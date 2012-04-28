@@ -1,0 +1,271 @@
+#!/usr/bin/env python
+#
+# Copyright (C) 2012  Leo Singer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+"""
+Script for Monte Carlo sky localization study.
+"""
+__author__ = "Leo Singer <leo.singer@ligo.org>"
+
+
+# Command line interface.
+from optparse import Option, OptionParser
+opts, args = OptionParser(
+    option_list = [
+    ]
+).parse_args()
+
+infilename = args[0]
+
+
+# Late imports.
+import os
+import numpy as np
+from glue.ligolw import lsctables, table, utils
+from pylal.xlal import inject
+from bayestar import io
+import bayestar_localization
+from bayestar_localization import misc
+import swiglal, swiglalsimulation
+import healpy as hp
+import time
+
+# Read injection file.
+xmldoc = utils.load_filename(infilename,
+    gz=(os.path.splitext(infilename) == '.gz'))
+
+# Extract simulation table from injection file.
+sim_inspiral_table = table.get_table(xmldoc,
+    lsctables.SimInspiralTable.tableName)
+
+# Precomputed values that are common to all trials.
+ifos = ("H1", "L1", "V1")
+detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(ifo) for ifo in ifos]
+responses = [det.response for det in detectors]
+locations = [det.location for det in detectors]
+plan = bayestar_localization.create_plan(11)
+nside = 128
+
+
+def toa_uncertainty(snrs, bandwidths):
+    """Estimate uncertainty in TOA measurements using Cramer-Rao bound."""
+    return 1 / (2 * np.pi * abs(snrs) * bandwidths)
+
+
+def realize_injection(sim_inspiral, horizons, bandwidths):
+    """Realize an injection as noisy SNR and TOA measurements.
+    Return the Greenwich mean sidereal time, a vector of TOAs, and a vector of
+    complex SNRs."""
+
+    # Unpack some values from the row in the table.
+    m1 = sim_inspiral.mass1
+    m2 = sim_inspiral.mass2
+    f_low = sim_inspiral.f_lower
+    f_high = 4400 / (m1 + m2)
+    DL = sim_inspiral.distance
+    ra = sim_inspiral.longitude
+    dec = sim_inspiral.latitude
+    inc = sim_inspiral.inclination
+    phi = sim_inspiral.coa_phase
+    psi = sim_inspiral.polarization
+    epoch = sim_inspiral.get_time_geocent()
+    gmst = swiglal.XLALGreenwichMeanSiderealTime(epoch)
+
+    # Pre-evaluate some trigonometric functions that we will need.
+    cosinc = np.cos(inc)
+    cosphi = np.cos(2 * phi)
+    sinphi = np.sin(2 * phi)
+    cospsi = np.cos(2 * psi)
+    sinpsi = np.sin(2 * psi)
+
+    # Generate transformation matrix that maps F+, Fx onto the amplitudes of
+    # the two waveform quadratures
+    M = np.asmatrix(((cosphi, sinphi), (-sinphi, cosphi)))
+    M *= np.diag((cosinc, 0.5 * (1 + cosinc * cosinc)))
+    M *= ((cospsi, sinpsi), (-sinpsi, cospsi))
+
+    # Get SNR=1 horizon distances for each detector.
+    horizons = np.asarray([
+        misc.get_horizon_distance(ifo, m1, m2, f_low, f_high)
+        for ifo in ifos])
+
+    # Get effective bandwidths for each detector.
+    bandwidths = np.asarray([
+        misc.get_effective_bandwidth(ifo, m1, m2, f_low, f_high)
+        for ifo in ifos])
+
+    # Get antenna factors for each detector.
+    F = np.asarray([inject.XLALComputeDetAMResponse(response, ra, dec, 0, gmst)
+        for response in responses]).T
+
+    # Compute TOAs at each detector
+    toas = np.asarray([swiglal.XLALTimeDelayFromEarthCenter(location, ra, dec, epoch) for location in locations])
+
+    # Compute SNR in each detector
+    snrs = np.asarray(M * (F * horizons / DL))
+
+    # Convert SNR to a complex vector
+    snrs = snrs[0] + snrs[1] * 1j
+
+    # Estimate TOA uncertainty using CRLB evaluated at TRUE values of the SNRs.
+    s_toas = toa_uncertainty(snrs, bandwidths)
+
+    # Add noise to TOA estimates.
+    toas += np.random.randn(len(toas)) * s_toas
+
+    # Add noise to SNR estimates.
+    snrs += np.random.randn(len(snrs)) + np.random.randn(len(snrs)) * 1j
+
+    # Done.
+    return gmst, toas, snrs
+
+
+def find_injection(sky_map, true_ra, true_dec):
+    """
+    Given a sky map and the true right ascension and declination (in radians),
+    find the smallest area in deg^2 that would have to be searched to find the
+    source, the smallest posterior mass, and the angular offset in degrees from
+    the true location to the maximum (mode) of the posterior.
+    """
+
+    # Compute the HEALPix lateral resolution parameter for this sky map.
+    npix = len(sky_map)
+    nside = hp.npix2nside(npix)
+
+    # Convert from ra, dec to conventional spherical polar coordinates.
+    true_theta = 0.5 * np.pi - true_dec
+    true_phi = true_ra
+
+    # Find the HEALPix pixel index of the mode of the posterior and of the
+    # true sky location.
+    mode_pix = np.argmax(sky_map)
+    true_pix = hp.ang2pix(nside, true_theta, true_phi)
+
+    # Compute the Cartesian unit vector of the mode and true locations.
+    mode_vec = np.asarray(hp.pix2vec(nside, mode_pix))
+    true_vec = np.asarray(hp.ang2vec(true_theta, true_phi))
+
+    # Sort the pixels in the sky map by descending posterior probability and
+    # form the cumulative sum.  Record the total value.
+    indices = np.argsort(sky_map)[::-1]
+    cum_sky_map = np.cumsum(sky_map[indices])
+
+    # Find the index of the true location in the cumulative distribution.
+    idx = (i for i, pix in enumerate(indices) if pix == true_pix).next()
+
+    # Find the smallest area that would have to be searched to find the true
+    # location.
+    searched_area = (idx + 1) * hp.nside2pixarea(nside, degrees=True)
+
+    # Find the smallest posterior mass that would have to be searched to find
+    # the true location.
+    searched_prob = cum_sky_map[idx]
+
+    # Permute the cumulative distribution so that it is indexed the same way
+    # as the original sky map.
+    cum_sky_map[indices] = cum_sky_map
+
+    # Find the angular offset between the mode and true locations.
+    offset = np.rad2deg(np.arccos(np.dot(true_vec, mode_vec)))
+
+    # Done.
+    return searched_area, searched_prob, offset
+
+
+outfile1 = open("toa.out", "w")
+outfile2 = open("toa_snr.out", "w")
+
+header = "elapsed_time searched_area searched_prob offset"
+print >>outfile1, header
+print >>outfile2, header
+
+for i, sim_inspiral in enumerate(sim_inspiral_table):
+
+    # Unpack some values from the row in the table.
+    m1 = sim_inspiral.mass1
+    m2 = sim_inspiral.mass2
+    f_low = sim_inspiral.f_lower
+    f_high = 4400 / (m1 + m2)
+    ra = sim_inspiral.longitude
+    dec = sim_inspiral.latitude
+    epoch = sim_inspiral.get_time_geocent()
+
+    # Get SNR=1 horizon distances for each detector.
+    horizons = np.asarray([
+        misc.get_horizon_distance(ifo, m1, m2, f_low, f_high)
+        for ifo in ifos])
+
+    # Get effective bandwidths for each detector.
+    bandwidths = np.asarray([
+        misc.get_effective_bandwidth(ifo, m1, m2, f_low, f_high)
+        for ifo in ifos])
+
+    # Realize injection as noisy TOA and SNR measurements.
+    gmst, toas, snrs = realize_injection(sim_inspiral, horizons, bandwidths)
+
+    # Estimate TOA uncertainty (squared) using CRLB evaluated at MEASURED
+    # values of the SNRs.
+    s2_toas = toa_uncertainty(snrs, bandwidths) ** 2
+
+
+    #
+    # TOA-only sky localization
+    #
+
+    # Time and run sky localization.
+    start_time = time.time()
+    sky_map = bayestar_localization.sky_map_tdoa(nside, gmst, toas, s2_toas, locations)
+    end_time = time.time()
+
+    # Compute elapsed time.
+    elapsed_time = end_time - start_time
+
+    # Calculate how well the injection is recovered.
+    searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
+
+    # Print results to output file.
+    print >>outfile1, elapsed_time, searched_area, searched_prob, offset
+
+    io.write_skymap('%s.toa.fits.gz' % sim_inspiral.simulation_id,
+        skymap=sky_map, gps=float(epoch))
+
+
+
+    #
+    # TOA+SNR sky localization
+    #
+
+    # Time and run sky localization.
+    start_time = time.time()
+    sky_map = bayestar_localization.sky_map(nside, gmst, toas, snrs, s2_toas, responses, locations, horizons, plan)
+    end_time = time.time()
+
+    # Compute elapsed time.
+    elapsed_time = end_time - start_time
+
+    # Calculate how well the injection is recovered.
+    searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
+
+    # Print results to output file.
+    print >>outfile2, elapsed_time, searched_area, searched_prob, offset
+
+    io.write_skymap('%s.toa_snr.fits.gz' % sim_inspiral.simulation_id,
+        skymap=sky_map, gps=float(epoch))
+
+
+# Close output files
+outfile1.close()
+outfile2.close()
