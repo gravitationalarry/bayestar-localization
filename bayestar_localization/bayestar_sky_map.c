@@ -94,12 +94,12 @@ static double square(double a)
 /* Perform sky localization based on TDOAs alone. Not normalized. */
 static int bayestar_sky_map_tdoa_not_normalized(
     long npix, /* Input: number of HEALPix pixels. */
-    double *restrict P, /* Output: pre-allocated array of length npix to store posterior map. */
+    double *P, /* Output: pre-allocated array of length npix to store posterior map. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
-    const double **restrict locs, /* Input: array of detector positions. */
-    const double *restrict toas, /* Input: array of times of arrival. */
-    const double *restrict s2_toas /* Input: uncertainties in times of arrival. */
+    const double **locs, /* Input: array of detector positions. */
+    const double *toas, /* Input: array of times of arrival. */
+    const double *s2_toas /* Input: uncertainties in times of arrival. */
 ) {
     double tdoas[nifos - 1], w_tdoas[nifos - 1];
     long nside;
@@ -160,12 +160,12 @@ fail:
 /* Perform sky localization based on TDOAs alone. */
 int bayestar_sky_map_tdoa(
     long npix, /* Input: number of HEALPix pixels. */
-    double *restrict P, /* Output: pre-allocated array of length npix to store posterior map. */
+    double *P, /* Output: pre-allocated array of length npix to store posterior map. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
-    const double **restrict locs, /* Input: array of detector positions. */
-    const double *restrict toas, /* Input: array of times of arrival. */
-    const double *restrict s2_toas /* Input: uncertainties in times of arrival. */
+    const double **locs, /* Input: array of detector positions. */
+    const double *toas, /* Input: array of times of arrival. */
+    const double *s2_toas /* Input: uncertainties in times of arrival. */
 ) {
     int ret = bayestar_sky_map_tdoa_not_normalized(npix, P, gmst, nifos, locs, toas, s2_toas);
     if (ret == 0)
@@ -223,15 +223,15 @@ static double inner_integrand(double x, void *params)
 
 int bayestar_sky_map(
     long npix, /* Input: number of HEALPix pixels. */
-    double *restrict P, /* Output: pre-allocated array of length npix to store posterior map. */
+    double *P, /* Output: pre-allocated array of length npix to store posterior map. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
-    const float **restrict responses, /* Pointers to detector responses. */
-    const double **restrict locations, /* Pointers to locations of detectors in Cartesian geographic coordinates. */
-    const double *restrict toas, /* Input: array of times of arrival with arbitrary relative offset. (Make toas[0] == 0.) */
-    const double complex *restrict snrs, /* Input: array of SNRs. */
-    const double *restrict s2_toas, /* Measurement variance of TOAs. */
-    const double *restrict horizons /* Distances at which a source would produce an SNR of 1 in each detector. */)
+    const float **responses, /* Pointers to detector responses. */
+    const double **locations, /* Pointers to locations of detectors in Cartesian geographic coordinates. */
+    const double *toas, /* Input: array of times of arrival with arbitrary relative offset. (Make toas[0] == 0.) */
+    const double complex *snrs, /* Input: array of SNRs. */
+    const double *s2_toas, /* Measurement variance of TOAs. */
+    const double *horizons /* Distances at which a source would produce an SNR of 1 in each detector. */)
 {
     long nside;
     long maxpix;

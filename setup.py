@@ -58,7 +58,7 @@ setup(
                 include_dirs=[np.get_include()] + healpix_include_dirs,
                 library_dirs=healpix_library_dirs,
                 libraries=['chealpix', 'gomp'],
-                extra_compile_args=['-fopenmp', '-std=c99']
+                extra_compile_args=['-fopenmp']
             )
         )
     ],
