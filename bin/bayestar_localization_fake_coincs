@@ -191,7 +191,7 @@ header = "elapsed_time searched_area searched_prob offset"
 print >>outfile1, header
 print >>outfile2, header
 
-for i, sim_inspiral in enumerate(sim_inspiral_table):
+for sim_inspiral in sim_inspiral_table:
 
     # Unpack some values from the row in the table.
     m1 = sim_inspiral.mass1
