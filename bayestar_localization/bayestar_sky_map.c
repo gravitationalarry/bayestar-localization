@@ -27,7 +27,7 @@
 
 #include <chealpix.h>
 
-#include <gsl/gsl_errno.h>
+#include <gsl/gsl_sf_bessel.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_sort_vector_double.h>
 #include <gsl/gsl_vector.h>
@@ -88,12 +88,6 @@ _XLALArrivalTimeDiff(
 static double square(double a)
 {
     return a * a;
-}
-
-
-static double cabs2(const double complex x)
-{
-    return square(creal(x)) + square(cimag(x));
 }
 
 
@@ -195,45 +189,41 @@ int bayestar_sky_map_tdoa(
 }
 
 
-/* Custom error handler. */
-static void my_gsl_error(const char * reason, const char * file, int line, int gsl_errno)
-{
-    /* For 'maximum number of subdivisions reached' errors, print a warning and move on. */
-    if (errno == GSL_EMAXITER)
-        gsl_stream_printf("WARNING", file, line, reason);
-    else
-    /* For all other errors, use the default handler: print an error message and abort. */
-        gsl_error(reason, file, line, errno);
-}
+#define INTEGRAND_COUNT_NODES 15
+#define INTEGRAND_COUNT_SAMPLES (INTEGRAND_COUNT_NODES * INTEGRAND_COUNT_NODES)
 
 
-struct inner_integrand_params {
-    int nifos;
-    double complex *response;
-    const double complex *snrs;
-};
+typedef struct {
+    double args[INTEGRAND_COUNT_SAMPLES][2];
+} inner_integrand_params;
 
 
 static double inner_integrand(double x, void *params)
 {
-    int i;
-    double ret;
-    int nifos = ((struct inner_integrand_params *) params)->nifos;
-    const double complex *response = ((struct inner_integrand_params *) params)->response;
-    const double complex *snrs = ((struct inner_integrand_params *) params)->snrs;
+    const inner_integrand_params *my_params = (inner_integrand_params *) params;
 
-    for (ret = 0, i = 0; i < nifos; i ++)
-        ret += cabs2(response[i] / x - snrs[i]);
-    ret = exp(-0.5 * ret) * x * x;
-    return ret;
+    /* We'll need to divide by 1/x and also 1/x^2. We can save one division by
+     * computing 1/x and then squaring it. */
+    const double onebyx = 1 / x;
+    const double onebyx2 = onebyx * onebyx;
+
+    double ret;
+    int i;
+
+    for (ret = 0, i = 0; i < INTEGRAND_COUNT_SAMPLES; i ++)
+    {
+        const double I0_arg = onebyx * my_params->args[i][1];
+        ret += exp(I0_arg + onebyx2 * my_params->args[i][0])
+            * gsl_sf_bessel_I0_scaled(I0_arg);
+    }
+
+    return ret * x * x;
 }
 
 
 int bayestar_sky_map(
     long npix, /* Input: number of HEALPix pixels. */
     double *restrict P, /* Output: pre-allocated array of length npix to store posterior map. */
-    long nplan, /* Number of entries in plan; plan should be an array of 4 * nplan doubles. */
-    const double *restrict plan, /* Pre-evaluated transformation matrices. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
     const float **restrict responses, /* Pointers to detector responses. */
@@ -248,8 +238,28 @@ int bayestar_sky_map(
     int ret = -1;
     long i;
     double d1[nifos];
-    gsl_permutation *pix_perm;
-    gsl_error_handler_t *old_handler = gsl_set_error_handler(my_gsl_error);
+    gsl_permutation *pix_perm = NULL;
+    gsl_integration_glfixed_table *glfixed_table = NULL;
+
+    /* Precalculate trigonometric that occur in the integrand. */
+    double u4_6u2_1[INTEGRAND_COUNT_NODES];
+    double u4_2u2_1[INTEGRAND_COUNT_NODES];
+    double u3_u[INTEGRAND_COUNT_NODES];
+    double cosines[INTEGRAND_COUNT_NODES];
+    double sines[INTEGRAND_COUNT_NODES];
+    for (i = -(INTEGRAND_COUNT_NODES / 2); i <= (INTEGRAND_COUNT_NODES / 2); i ++)
+    {
+        const double u = (double) i / (INTEGRAND_COUNT_NODES / 2);
+        const double u2 = u * u;
+        const double u3 = u2 * u;
+        const double u4 = u3 * u;
+        const double angle = M_PI * u;
+        u4_6u2_1[i + (INTEGRAND_COUNT_NODES / 2)] = u4 + 6 * u2 + 1;
+        u4_2u2_1[i + (INTEGRAND_COUNT_NODES / 2)] = u4 - 2 * u2 + 1;
+        u3_u[i + (INTEGRAND_COUNT_NODES / 2)] = u3 + u;
+        cosines[i + (INTEGRAND_COUNT_NODES / 2)] = cos(angle);
+        sines[i + (INTEGRAND_COUNT_NODES / 2)] = sin(angle);
+    }
 
     /* Determine the lateral HEALPix resolution. */
     nside = npix2nside(npix);
@@ -257,7 +267,7 @@ int bayestar_sky_map(
         goto fail;
 
     /* Check that none of the inputs are NULL. */
-    if (!P|| !plan || !responses || !locations || !toas || !snrs || !horizons || !s2_toas)
+    if (!P|| !responses || !locations || !toas || !snrs || !horizons || !s2_toas)
     {
         errno = EFAULT;
         goto fail;
@@ -268,7 +278,12 @@ int bayestar_sky_map(
     if (!pix_perm)
         goto fail;
 
-    /* Rescale distances so that furthest horizon distance is 1 */
+    /* Precalculate weights and nodes for Gaussian quadrature. */
+    glfixed_table = gsl_integration_glfixed_table_alloc(32);
+    if (!glfixed_table)
+        goto fail;
+
+    /* Rescale distances so that furthest horizon distance is 1. */
     {
         double d1max;
         memcpy(d1, horizons, sizeof(d1));
@@ -303,36 +318,69 @@ int bayestar_sky_map(
     #pragma omp parallel for
     for (i = 0; i < maxpix; i ++)
     {
-        long j;
-        double theta, phi, accum;
-        double Fp[nifos], Fx[nifos];
+        int j;
         long ipix = gsl_permutation_get(pix_perm, npix - i - 1);
-        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(20);
-        pix2ang_ring(nside, ipix, &theta, &phi);
+        inner_integrand_params params;
 
-        for (j = 0; j < nifos; j ++)
+        /* Evaluate integrand on a regular lattice in psi and cos(i). */
         {
-            XLALComputeDetAMResponse(&Fp[j], &Fx[j], responses[j],
-                phi, M_PI_2 - theta, 0, gmst);
-            Fp[j] *= d1[j];
-            Fx[j] *= d1[j];
+            double e, f, g;
+            double c1, c2, c3, c4;
+            {
+                double theta, phi;
+                double a, b, c, d;
+                pix2ang_ring(nside, ipix, &theta, &phi);
+                for (j = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0; j < nifos; j ++)
+                {
+                    double Fp, Fx;
+                    XLALComputeDetAMResponse(&Fp, &Fx, responses[j], phi, M_PI_2 - theta, 0, gmst);
+                    Fp *= d1[j];
+                    Fx *= d1[j];
+                    a += Fp * creal(snrs[j]);
+                    b += Fx * cimag(snrs[j]);
+                    c += Fx * creal(snrs[j]);
+                    d += Fp * cimag(snrs[j]);
+                    g += Fp * Fx;
+                    Fp *= Fp;
+                    Fx *= Fx;
+                    e += Fp + Fx;
+                    f += Fp - Fx;
+                }
+                c1 = a * b - c * d;
+                c4 = (a * c + b * d) / 4;
+                a *= a;
+                b *= b;
+                c *= c;
+                d *= d;
+                c2 = (a + b + c + d) / 8;
+                c3 = (a - b - c + d) / 8;
+            }
+            e /= -16;
+            f /= -16;
+            g /= -16;
+
+            for (j = 0; j < INTEGRAND_COUNT_NODES; j ++)
+            {
+                const double args0 = u4_6u2_1[j] * e;
+                const double args1 = u3_u[j] * c1 + u4_6u2_1[j] * c2;
+                int k;
+
+                for (k = 0; k < INTEGRAND_COUNT_NODES; k ++)
+                {
+                    int l = j * INTEGRAND_COUNT_NODES + k;
+                    params.args[l][0] = args0 + u4_2u2_1[j] * (f * cosines[k] + g * sines[k]);
+                    params.args[l][1] = sqrt(args1 + u4_2u2_1[j] * (c3 * cosines[k] + c4 * sines[k]));
+                }
+            }
         }
-        for (accum = 0, j = 0; j < nplan; j ++)
+
+        /* Perform Gaussian quadrature over luminosity distance. */
         {
-            long k;
-            const double *M = &plan[4 * j];
-            double complex response[nifos];
-            double result, abserr;
-            struct inner_integrand_params params = {nifos, response, snrs};
-            gsl_function func = {inner_integrand, &params};
-            for (k = 0; k < nifos; k ++)
-                response[k] = (M[0] * Fp[k] + M[1] * Fx[k]) + (M[2] * Fp[k] + M[3] * Fx[k]) * 1i;
-            gsl_integration_qag(&func, 0, 4, DBL_MIN, 0.05, 20, GSL_INTEG_GAUSS15, workspace, &result, &abserr);
-            accum += result;
+            const gsl_function func = {inner_integrand, &params};
+            P[ipix] *= gsl_integration_glfixed(&func, 0.05, 4, glfixed_table);
         }
-        gsl_integration_workspace_free(workspace);
-        P[ipix] *= accum;
     }
+
     /* Finish up by zeroing pixels that didn't meet the TDOA cut. */
     for (i = maxpix; i < npix; i ++)
     {
@@ -352,6 +400,6 @@ int bayestar_sky_map(
     ret = 0;
 fail:
     gsl_permutation_free(pix_perm);
-    gsl_set_error_handler(old_handler);
+    gsl_integration_glfixed_table_free(glfixed_table);
     return ret;
 }

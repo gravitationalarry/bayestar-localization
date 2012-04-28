@@ -152,12 +152,11 @@ static PyObject *sky_map(PyObject *module, PyObject *args, PyObject *kwargs)
     long nside;
     long npix;
     long nifos;
-    long nplan;
     double gmst;
     PyObject *toas_obj, *snrs_obj, *toa_variances_obj, *responses_obj,
-        *locations_obj, *horizons_obj, *plan_obj;
+        *locations_obj, *horizons_obj;
 
-    PyObject *toas_npy = NULL, *snrs_npy = NULL, *toa_variances_npy = NULL, **responses_npy = NULL, **locations_npy = NULL, *horizons_npy = NULL, *plan_npy = NULL;
+    PyObject *toas_npy = NULL, *snrs_npy = NULL, *toa_variances_npy = NULL, **responses_npy = NULL, **locations_npy = NULL, *horizons_npy = NULL;
 
     double *toas;
     double complex *snrs;
@@ -165,7 +164,6 @@ static PyObject *sky_map(PyObject *module, PyObject *args, PyObject *kwargs)
     float **responses = NULL;
     double **locations = NULL;
     double *horizons;
-    double *plan;
 
     npy_intp dims[1];
     PyObject *out = NULL, *ret = NULL;
@@ -174,12 +172,12 @@ static PyObject *sky_map(PyObject *module, PyObject *args, PyObject *kwargs)
 
     /* Names of arguments */
     static char *keywords[] = {"nside", "gmst", "toas", "snrs",
-        "toa_variances", "responses", "locations", "horizons", "plan", NULL};
+        "toa_variances", "responses", "locations", "horizons", NULL};
 
     /* Parse arguments */
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ldOOOOOOO|", keywords,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ldOOOOOO|", keywords,
         &nside, &gmst, &toas_obj, &snrs_obj, &toa_variances_obj,
-        &responses_obj, &locations_obj, &horizons_obj, &plan_obj)) goto fail;
+        &responses_obj, &locations_obj, &horizons_obj)) goto fail;
 
     npix = nside2npix(nside);
     if (npix < 0)
@@ -299,17 +297,7 @@ static PyObject *sky_map(PyObject *module, PyObject *args, PyObject *kwargs)
     }
     horizons = PyArray_DATA(horizons_npy);
 
-    plan_npy = AsArrayObj(plan_obj, NPY_DOUBLE, 3);
-    if (!plan_npy) goto fail;
-    if (PyArray_DIM(plan_npy, 1) != 2 || PyArray_DIM(plan_npy, 2) != 2)
-    {
-        PyErr_SetString(PyExc_ValueError, "plan must be a list of 2x2 matrices");
-        goto fail;
-    }
-    nplan = PyArray_DIM(plan_npy, 0);
-    plan = PyArray_DATA(plan_npy);
-
-    result = bayestar_sky_map(npix, P, nplan, plan, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons);
+    result = bayestar_sky_map(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons);
     if (ret != 0)
     {
         PyErr_SetFromErrno(PyExc_RuntimeError);
@@ -333,7 +321,6 @@ fail:
     free(locations_npy);
     free(locations);
     Py_XDECREF(horizons_npy);
-    Py_XDECREF(plan_npy);
     Py_XDECREF(out);
     return ret;
 };

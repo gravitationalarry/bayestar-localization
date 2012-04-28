@@ -35,8 +35,6 @@ int bayestar_sky_map_tdoa(
 int bayestar_sky_map(
     long npix, /* Input: number of HEALPix pixels. */
     double *restrict P, /* Output: pre-allocated array of length npix to store posterior map. */
-    long nplan, /* Number of entries in plan; plan should be an array of 4 * nplan doubles. */
-    const double *restrict plan, /* Pre-evaluated transformation matrices. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
     const float **restrict responses, /* Pointers to detector responses. */

@@ -56,7 +56,6 @@ ifos = ("H1", "L1", "V1")
 detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(ifo) for ifo in ifos]
 responses = [det.response for det in detectors]
 locations = [det.location for det in detectors]
-plan = bayestar_localization.create_plan(11)
 nside = 128
 
 
@@ -250,7 +249,7 @@ for i, sim_inspiral in enumerate(sim_inspiral_table):
 
     # Time and run sky localization.
     start_time = time.time()
-    sky_map = bayestar_localization.sky_map(nside, gmst, toas, snrs, s2_toas, responses, locations, horizons, plan)
+    sky_map = bayestar_localization.sky_map(nside, gmst, toas, snrs, s2_toas, responses, locations, horizons)
     end_time = time.time()
 
     # Compute elapsed time.
