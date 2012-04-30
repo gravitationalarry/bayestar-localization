@@ -45,6 +45,14 @@ def pkgconfig(*packages, **kw):
 ## end of http://code.activestate.com/recipes/502261/ }}}
 
 
+def copy_library_dirs_to_runtime_library_dirs(**kwargs):
+    """Add every entry of library_dirs to runtime_library_dirs so that linker
+    adds rpath entries."""
+    kwargs.setdefault('runtime_library_dirs', []).extend(
+        kwargs.get('library_dirs', []))
+    return kwargs
+
+
 setup(
     name='bayestar-localization',
     version='0.0.1',
@@ -54,12 +62,13 @@ setup(
     packages=['bayestar_localization'],
     ext_modules=[
         Extension('bayestar_localization._sky_map', ['bayestar_localization/_sky_map.c', 'bayestar_localization/bayestar_sky_map.c'],
+            **copy_library_dirs_to_runtime_library_dirs(
             **pkgconfig('lal', 'lalsimulation', 'gsl',
                 include_dirs=[np.get_include()] + healpix_include_dirs,
                 library_dirs=healpix_library_dirs,
-                libraries=['chealpix', 'gomp'],
-                extra_compile_args=['-fopenmp']
-            )
+                libraries=['cfitsio', 'chealpix', 'gomp'],
+                extra_compile_args=['-fopenmp', '-std=c99']
+            ))
         )
     ],
     scripts=['bin/bayestar_localization_fake_coincs'],
