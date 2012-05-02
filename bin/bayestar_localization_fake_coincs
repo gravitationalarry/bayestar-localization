@@ -249,7 +249,7 @@ for sim_inspiral in sim_inspiral_table:
 
     # Time and run sky localization.
     start_time = time.time()
-    sky_map = bayestar_localization.sky_map(nside, gmst, toas, snrs, s2_toas, responses, locations, horizons)
+    sky_map = bayestar_localization.sky_map_tdoa_snr(nside, gmst, toas, snrs, s2_toas, responses, locations, horizons)
     end_time = time.time()
 
     # Compute elapsed time.

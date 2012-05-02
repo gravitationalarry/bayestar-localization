@@ -145,7 +145,7 @@ fail:
 };
 
 
-static PyObject *sky_map(PyObject *module, PyObject *args, PyObject *kwargs)
+static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kwargs)
 {
     long i;
     Py_ssize_t n;
@@ -328,7 +328,7 @@ fail:
 
 static PyMethodDef methods[] = {
     {"sky_map_tdoa", (PyCFunction)sky_map_tdoa, METH_VARARGS | METH_KEYWORDS, "fill me in"},
-    {"sky_map", (PyCFunction)sky_map, METH_VARARGS | METH_KEYWORDS, "fill me in"},
+    {"sky_map_tdoa_snr", (PyCFunction)sky_map_tdoa_snr, METH_VARARGS | METH_KEYWORDS, "fill me in"},
     {NULL, NULL, 0, NULL}
 };
 

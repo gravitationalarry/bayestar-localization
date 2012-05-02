@@ -32,7 +32,7 @@ int bayestar_sky_map_tdoa(
 );
 
 /* Perform sky localization based on TDOAs and amplitude. */
-int bayestar_sky_map(
+int bayestar_sky_map_tdoa_snr(
     long npix, /* Input: number of HEALPix pixels. */
     double *P, /* Output: pre-allocated array of length npix to store posterior map. */
     double gmst, /* Greenwich mean sidereal time in radians. */
