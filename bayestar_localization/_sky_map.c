@@ -297,7 +297,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     }
     horizons = PyArray_DATA(horizons_npy);
 
-    result = bayestar_sky_map(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons);
+    result = bayestar_sky_map_tdoa_snr(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons);
     if (ret != 0)
     {
         PyErr_SetFromErrno(PyExc_RuntimeError);
