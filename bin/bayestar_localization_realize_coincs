@@ -1,0 +1,227 @@
+#!/usr/bin/env python
+#
+# Copyright (C) 2012  Leo Singer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+from __future__ import division
+"""
+Synthesize triggers for simulated sources by realizing Gaussian measurement
+errors in SNR and time of arrival.  The input file (or stdin if the input file
+is omitted) should be a LIGO-LW XML file of the form produced by
+lalapps_inspinj.  The output file (or stdout if omitted) will be a LIGO-LW XML
+file containing single-detector triggers and coincidences.
+"""
+__author__ = "Leo Singer <leo.singer@ligo.org>"
+
+
+# Determine list of known detectors for command line arguments.
+import swiglal
+available_ifos = sorted(det.frDetector.prefix
+    for det in swiglal.lalCachedDetectors)
+
+# Command line interface.
+from optparse import Option, OptionParser
+parser = OptionParser(description=__doc__,
+    usage="%prog [options] [INPUT.xml[.gz]]",
+    option_list = [
+        Option("-o", "--output", metavar="OUTPUT.xml[.gz]", default="/dev/stdout",
+            help="Name of output file (default=stdout)"),
+        Option("--detector", metavar='|'.join(available_ifos), action="append",
+            help="Detectors to use.  May be specified multiple times.",
+            choices=available_ifos)
+    ]
+)
+opts, args = parser.parse_args()
+
+# Determine if input will come from a named file or from stdin.
+if len(args) == 0:
+    infilename = '/dev/stdin'
+elif len(args) == 1:
+    infilename = args[0]
+else:
+    raise ValueError("Too many command line arguments.")
+
+
+# Late imports.
+import os
+import numpy as np
+from glue import segments
+from glue.ligolw import ligolw, lsctables, table, utils
+from glue.ligolw.utils import process as ligolw_process
+from glue import lal
+from pylal.xlal import inject
+from pylal import ligolw_thinca, llwapp
+from bayestar_localization import misc
+import swiglal, swiglalsimulation
+
+# Open output file.
+out_xmldoc = ligolw.Document()
+out_xmldoc.appendChild(ligolw.LIGO_LW())
+
+# Write process metadata to output file.
+process = ligolw_process.register_to_xmldoc(out_xmldoc, parser.get_prog_name(),
+    opts.__dict__, ifos=opts.detector, comment="Simulated coincidences")
+
+# Add search summary to output file.
+all_time = segments.segment([lal.LIGOTimeGPS(0), lal.LIGOTimeGPS(2e9)])
+search_summary_table = lsctables.New(lsctables.SearchSummaryTable)
+out_xmldoc.childNodes[0].appendChild(search_summary_table)
+summary = llwapp.append_search_summary(out_xmldoc, process, inseg=all_time,
+    outseg=all_time)
+
+# Read injection file.
+xmldoc = utils.load_filename(infilename,
+    gz=(os.path.splitext(infilename) == '.gz'))
+
+# Extract simulation table from injection file.
+sim_inspiral_table = table.get_table(xmldoc,
+    lsctables.SimInspiralTable.tableName)
+
+# Create a SnglInspiral table and initialize its row ID counter.
+sngl_inspiral_table = lsctables.New(lsctables.SnglInspiralTable)
+out_xmldoc.childNodes[0].appendChild(sngl_inspiral_table)
+sngl_inspiral_table.set_next_id(lsctables.SnglInspiralID(0))
+
+# Create a time slide entry.  Needed for coinc_event rows.
+time_slide_id = llwapp.get_time_slide_id(out_xmldoc,
+    dict((ifo, 0) for ifo in opts.detector), create_new=process)
+
+# Create a CoincDef table and record a CoincDef row for
+# sngl_inspiral <-> sngl_inspiral coincidences.
+coinc_def_table = lsctables.New(lsctables.CoincDefTable)
+out_xmldoc.childNodes[0].appendChild(coinc_def_table)
+coinc_def = ligolw_thinca.InspiralCoincDef
+coinc_def_id = coinc_def_table.get_next_id()
+coinc_def.coinc_def_id = coinc_def_id
+coinc_def_table.append(coinc_def)
+
+# Create a CoincMap table.
+coinc_map_table = lsctables.New(lsctables.CoincMapTable)
+out_xmldoc.childNodes[0].appendChild(coinc_map_table)
+
+# Create a CoincEvent table.
+coinc_table = lsctables.New(lsctables.CoincTable)
+out_xmldoc.childNodes[0].appendChild(coinc_table)
+
+# Precompute values that are common to all simulations.
+detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(ifo)
+    for ifo in opts.detector]
+responses = [det.response for det in detectors]
+locations = [det.location for det in detectors]
+
+for sim_inspiral in sim_inspiral_table:
+
+    # Unpack some values from the row in the table.
+    m1 = sim_inspiral.mass1
+    m2 = sim_inspiral.mass2
+    f_low = sim_inspiral.f_lower
+    f_high = 4400 / (m1 + m2)
+    DL = sim_inspiral.distance
+    ra = sim_inspiral.longitude
+    dec = sim_inspiral.latitude
+    inc = sim_inspiral.inclination
+    phi = sim_inspiral.coa_phase
+    psi = sim_inspiral.polarization
+    epoch = sim_inspiral.get_time_geocent()
+    gmst = swiglal.XLALGreenwichMeanSiderealTime(epoch)
+
+    # Pre-evaluate some trigonometric functions that we will need.
+    cosinc = np.cos(inc)
+    cosphi = np.cos(2 * phi)
+    sinphi = np.sin(2 * phi)
+    cospsi = np.cos(2 * psi)
+    sinpsi = np.sin(2 * psi)
+
+    # Generate transformation matrix that maps F+, Fx onto the amplitudes of
+    # the two waveform quadratures
+    M = np.asmatrix(((cosphi, sinphi), (-sinphi, cosphi)))
+    M *= np.diag((cosinc, 0.5 * (1 + cosinc * cosinc)))
+    M *= ((cospsi, sinpsi), (-sinpsi, cospsi))
+
+    # Get SNR=1 horizon distances for each detector.
+    horizons = np.asarray([
+        misc.get_horizon_distance(ifo, m1, m2, f_low, f_high)
+        for ifo in opts.detector])
+
+    # Get effective bandwidths for each detector.
+    bandwidths = np.asarray([
+        misc.get_effective_bandwidth(ifo, m1, m2, f_low, f_high)
+        for ifo in opts.detector])
+
+    # Get antenna factors for each detector.
+    F = np.asarray([inject.XLALComputeDetAMResponse(response, ra, dec, 0, gmst)
+        for response in responses]).T
+
+    # Compute TOAs at each detector
+    toas = np.asarray([swiglal.XLALTimeDelayFromEarthCenter(location, ra, dec,
+        epoch) for location in locations])
+
+    # Compute SNR in each detector
+    snrs = np.asarray(M * (F * horizons / DL))
+
+    # Convert SNR to a complex vector
+    snrs = snrs[0] + snrs[1] * 1j
+
+    # Estimate TOA uncertainty using CRLB evaluated at TRUE values of the SNRs.
+    s_toas = misc.toa_uncertainty(snrs, bandwidths)
+
+    # Add noise to TOA estimates.
+    toas += np.random.randn(len(toas)) * s_toas
+
+    # Add noise to SNR estimates.
+    snrs += np.random.randn(len(snrs)) + np.random.randn(len(snrs)) * 1j
+
+    # Add Coinc table entry.
+    coinc = lsctables.Coinc()
+    coinc.coinc_event_id = coinc_table.get_next_id()
+    coinc.process_id = process.process_id
+    coinc.coinc_def_id = coinc_def_id
+    coinc.time_slide_id = time_slide_id
+    coinc.set_instruments(opts.detector)
+    coinc.nevents = len(opts.detector)
+    coinc.likelihood = None
+    coinc_table.append(coinc)
+
+    # Loop over individual detectors and add SnglInspiral and CoincMap entries.
+    for ifo, snr, toa, horizon in zip(opts.detector, snrs, toas, horizons):
+
+        # Add SnglInspiral entry.
+        sngl_inspiral = lsctables.SnglInspiral()
+        for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
+            setattr(sngl_inspiral, validcolumn, None)
+        sngl_inspiral.process_id = process.process_id
+        sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
+        sngl_inspiral.ifo = ifo
+        sngl_inspiral.mass1 = m1
+        sngl_inspiral.mass2 = m2
+        sngl_inspiral.set_end(toa + epoch)
+        sngl_inspiral.snr = abs(snr)
+        sngl_inspiral.coa_phase = np.angle(snr)
+        sngl_inspiral.eff_distance = horizon / sngl_inspiral.snr
+        sngl_inspiral_table.append(sngl_inspiral)
+
+        # Add CoincMap entry.
+        coinc_map = lsctables.CoincMap()
+        coinc_map.coinc_event_id = coinc.coinc_event_id
+        coinc_map.table_name = sngl_inspiral_table.tableName
+        coinc_map.event_id = sngl_inspiral.event_id
+        coinc_map_table.append(coinc_map)
+
+# Record process end time.
+ligolw_process.set_process_end_time(process)
+
+# Write output file.
+utils.write_filename(out_xmldoc, opts.output,
+    gz=(os.path.splitext(opts.output)==".gz"))

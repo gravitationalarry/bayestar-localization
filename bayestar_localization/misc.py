@@ -77,3 +77,8 @@ def get_effective_bandwidth(ifo, m1=1.4, m2=1.4, f_low=10., f_high=1560.):
     S = [S(ff) for ff in f]
 
     return np.sqrt(np.sum(f ** (-1/3) / S) / np.sum(f ** (-7/3) / S))
+
+
+def toa_uncertainty(snr, bandwidth):
+    """Estimate uncertainty in TOA measurements using Cramer-Rao bound."""
+    return 1 / (2 * np.pi * abs(snr) * bandwidth)

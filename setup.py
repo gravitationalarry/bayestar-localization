@@ -71,5 +71,8 @@ setup(
             ))
         )
     ],
-    scripts=['bin/bayestar_localization_fake_coincs'],
+    scripts=[
+        'bin/bayestar_localization_realize_coincs',
+        'bin/bayestar_localization_localize_coincs'
+    ]
 )

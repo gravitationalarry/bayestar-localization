@@ -25,6 +25,8 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 from optparse import Option, OptionParser
 opts, args = OptionParser(
     option_list = [
+        Option("--nside", "-n", type=int, default=128,
+            help="HEALPix lateral resolution (default=128)")
     ]
 ).parse_args()
 
@@ -36,6 +38,8 @@ import os
 import numpy as np
 from glue.ligolw import lsctables, table, utils
 from pylal.xlal import inject
+from pylal import date
+from pylal import ligolw_inspinjfind, ligolw_thinca, llwapp
 from bayestar import io
 import bayestar_localization
 from bayestar_localization import misc
@@ -46,91 +50,6 @@ import time
 # Read injection file.
 xmldoc = utils.load_filename(infilename,
     gz=(os.path.splitext(infilename) == '.gz'))
-
-# Extract simulation table from injection file.
-sim_inspiral_table = table.get_table(xmldoc,
-    lsctables.SimInspiralTable.tableName)
-
-# Precomputed values that are common to all trials.
-ifos = ("H1", "L1", "V1")
-detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(ifo) for ifo in ifos]
-responses = [det.response for det in detectors]
-locations = [det.location for det in detectors]
-nside = 128
-
-
-def toa_uncertainty(snrs, bandwidths):
-    """Estimate uncertainty in TOA measurements using Cramer-Rao bound."""
-    return 1 / (2 * np.pi * abs(snrs) * bandwidths)
-
-
-def realize_injection(sim_inspiral, horizons, bandwidths):
-    """Realize an injection as noisy SNR and TOA measurements.
-    Return the Greenwich mean sidereal time, a vector of TOAs, and a vector of
-    complex SNRs."""
-
-    # Unpack some values from the row in the table.
-    m1 = sim_inspiral.mass1
-    m2 = sim_inspiral.mass2
-    f_low = sim_inspiral.f_lower
-    f_high = 4400 / (m1 + m2)
-    DL = sim_inspiral.distance
-    ra = sim_inspiral.longitude
-    dec = sim_inspiral.latitude
-    inc = sim_inspiral.inclination
-    phi = sim_inspiral.coa_phase
-    psi = sim_inspiral.polarization
-    epoch = sim_inspiral.get_time_geocent()
-    gmst = swiglal.XLALGreenwichMeanSiderealTime(epoch)
-
-    # Pre-evaluate some trigonometric functions that we will need.
-    cosinc = np.cos(inc)
-    cosphi = np.cos(2 * phi)
-    sinphi = np.sin(2 * phi)
-    cospsi = np.cos(2 * psi)
-    sinpsi = np.sin(2 * psi)
-
-    # Generate transformation matrix that maps F+, Fx onto the amplitudes of
-    # the two waveform quadratures
-    M = np.asmatrix(((cosphi, sinphi), (-sinphi, cosphi)))
-    M *= np.diag((cosinc, 0.5 * (1 + cosinc * cosinc)))
-    M *= ((cospsi, sinpsi), (-sinpsi, cospsi))
-
-    # Get SNR=1 horizon distances for each detector.
-    horizons = np.asarray([
-        misc.get_horizon_distance(ifo, m1, m2, f_low, f_high)
-        for ifo in ifos])
-
-    # Get effective bandwidths for each detector.
-    bandwidths = np.asarray([
-        misc.get_effective_bandwidth(ifo, m1, m2, f_low, f_high)
-        for ifo in ifos])
-
-    # Get antenna factors for each detector.
-    F = np.asarray([inject.XLALComputeDetAMResponse(response, ra, dec, 0, gmst)
-        for response in responses]).T
-
-    # Compute TOAs at each detector
-    toas = np.asarray([swiglal.XLALTimeDelayFromEarthCenter(location, ra, dec, epoch) for location in locations])
-
-    # Compute SNR in each detector
-    snrs = np.asarray(M * (F * horizons / DL))
-
-    # Convert SNR to a complex vector
-    snrs = snrs[0] + snrs[1] * 1j
-
-    # Estimate TOA uncertainty using CRLB evaluated at TRUE values of the SNRs.
-    s_toas = toa_uncertainty(snrs, bandwidths)
-
-    # Add noise to TOA estimates.
-    toas += np.random.randn(len(toas)) * s_toas
-
-    # Add noise to SNR estimates.
-    snrs += np.random.randn(len(snrs)) + np.random.randn(len(snrs)) * 1j
-
-    # Done.
-    return gmst, toas, snrs
-
 
 def find_injection(sky_map, true_ra, true_dec):
     """
@@ -191,16 +110,71 @@ header = "elapsed_time searched_area searched_prob offset"
 print >>outfile1, header
 print >>outfile2, header
 
-for sim_inspiral in sim_inspiral_table:
+# Look up coinc_def ids.
+coinc_def = ligolw_thinca.InspiralCoincDef
+coinc_def_id = llwapp.get_coinc_def_id(xmldoc, coinc_def.search, coinc_def.search_coinc_type, create_new=False)
+coinc_def = ligolw_inspinjfind.InspiralSCExactCoincDef
+sim_coinc_def_id = llwapp.get_coinc_def_id(xmldoc, coinc_def.search, coinc_def.search_coinc_type, create_new=False)
 
-    # Unpack some values from the row in the table.
-    m1 = sim_inspiral.mass1
-    m2 = sim_inspiral.mass2
-    f_low = sim_inspiral.f_lower
+# Look up coinc_table and coinc_map_table.
+coinc_table = table.get_table(xmldoc, lsctables.CoincTable.tableName)
+coinc_map_table = table.get_table(xmldoc, lsctables.CoincMapTable.tableName)
+
+
+def events_for_coinc_event_id(coinc_event_id):
+    for coinc_map in coinc_map_table:
+        if coinc_map.coinc_event_id == coinc_event_id:
+            for row in table.get_table(xmldoc, coinc_map.table_name):
+                column_name = coinc_map.event_id.column_name
+                if getattr(row, column_name) == coinc_map.event_id:
+                    yield coinc_map.event_id, row
+
+def complex_from_polar(r, phi):
+    return r * (np.cos(phi) + np.sin(phi) * 1j)
+
+# Loop over all coinc_event <-> sim_inspiral coincs.
+for sim_coinc in coinc_table:
+
+    # If this is not a coinc_event <-> sim_inspiral coinc, skip it.
+    if sim_coinc.coinc_def_id != sim_coinc_def_id:
+        continue
+
+    # Locate the sim_inspiral and coinc events.
+    sim_inspiral = None
+    coinc = None
+    for event_id, event in events_for_coinc_event_id(sim_coinc.coinc_event_id):
+        if event_id.table_name == table.StripTableName(lsctables.SimInspiralTable.tableName):
+            if sim_inspiral is not None:
+                raise RuntimeError("Found more than one matching sim_inspiral entry")
+            sim_inspiral = event
+        elif event_id.table_name == table.StripTableName(lsctables.CoincTable.tableName):
+            if coinc is not None:
+                raise RuntimeError("Found more than one matching coinc entry")
+            coinc = event
+        else:
+            raise RuntimeError("Did not expect coincidence to contain an event of type '%s'" % event_id.table_name)
+
+    sngl_inspirals = list(event
+        for event_id, event in events_for_coinc_event_id(coinc.coinc_event_id))
+    ifos = [sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals]
+
+    # Unpack some values from the rows in the tables.
+    m1 = sngl_inspirals[0].mass1
+    m2 = sngl_inspirals[0].mass2
+    f_low = sim_inspiral.f_lower # FIXME: better to get this elsewhere, but it's not stored in the sngl_inspiral table.
     f_high = 4400 / (m1 + m2)
     ra = sim_inspiral.longitude
     dec = sim_inspiral.latitude
-    epoch = sim_inspiral.get_time_geocent()
+
+    # Extract SNRs and TOAs from sngl_inspiral rows.
+    snrs = np.asarray([complex_from_polar(sngl_inspiral.snr, sngl_inspiral.coa_phase)
+        for sngl_inspiral in sngl_inspirals])
+    toas_ns = np.asarray([sngl_inspiral.get_end().ns()
+        for sngl_inspiral in sngl_inspirals])
+    mean_toa_ns = sum(toas_ns) // len(toas_ns)
+    toas = 1e-9 * (toas_ns - mean_toa_ns)
+    epoch = date.XLALINT8NSToGPS(mean_toa_ns)
+    gmst = date.XLALGreenwichMeanSiderealTime(epoch)
 
     # Get SNR=1 horizon distances for each detector.
     horizons = np.asarray([
@@ -212,12 +186,15 @@ for sim_inspiral in sim_inspiral_table:
         misc.get_effective_bandwidth(ifo, m1, m2, f_low, f_high)
         for ifo in ifos])
 
-    # Realize injection as noisy TOA and SNR measurements.
-    gmst, toas, snrs = realize_injection(sim_inspiral, horizons, bandwidths)
-
     # Estimate TOA uncertainty (squared) using CRLB evaluated at MEASURED
     # values of the SNRs.
-    s2_toas = toa_uncertainty(snrs, bandwidths) ** 2
+    s2_toas = misc.toa_uncertainty(snrs, bandwidths) ** 2
+
+    # Look up physical parameters for detector.
+    detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(str(ifo))
+        for ifo in ifos]
+    responses = [det.response for det in detectors]
+    locations = [det.location for det in detectors]
 
 
     #
@@ -226,7 +203,7 @@ for sim_inspiral in sim_inspiral_table:
 
     # Time and run sky localization.
     start_time = time.time()
-    sky_map = bayestar_localization.sky_map_tdoa(nside, gmst, toas, s2_toas, locations)
+    sky_map = bayestar_localization.sky_map_tdoa(opts.nside, gmst, toas, s2_toas, locations)
     end_time = time.time()
 
     # Compute elapsed time.
@@ -242,14 +219,13 @@ for sim_inspiral in sim_inspiral_table:
         skymap=sky_map, gps=float(epoch))
 
 
-
     #
     # TOA+SNR sky localization
     #
 
     # Time and run sky localization.
     start_time = time.time()
-    sky_map = bayestar_localization.sky_map_tdoa_snr(nside, gmst, toas, snrs, s2_toas, responses, locations, horizons)
+    sky_map = bayestar_localization.sky_map_tdoa_snr(opts.nside, gmst, toas, snrs, s2_toas, responses, locations, horizons)
     end_time = time.time()
 
     # Compute elapsed time.
