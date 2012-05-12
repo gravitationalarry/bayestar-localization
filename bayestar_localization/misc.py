@@ -46,7 +46,7 @@ def get_horizon_distance(ifo, m1=1.4, m2=1.4, f_low=10., f_high=1560., snr_thres
     mchirp = swiglal.LAL_MTSUN_SI * (m1 * m2) ** 0.6 * (m1 + m2) ** -0.2
 
     # Integration step in Hz.
-    df = 0.01
+    df = 1.
 
     # Evaluation frequencies.
     f = np.linspace(f_low, f_high, (f_high - f_low) / df)
@@ -67,7 +67,7 @@ def get_effective_bandwidth(ifo, m1=1.4, m2=1.4, f_low=10., f_high=1560.):
     mchirp = swiglal.LAL_MTSUN_SI * (m1 * m2) ** 0.6 * (m1 + m2) ** -0.2
     
     # Integration step in Hz.
-    df = 0.01
+    df = 1.
 
     # Evaluation frequencies.
     f = np.linspace(f_low, f_high, (f_high - f_low) / df)
