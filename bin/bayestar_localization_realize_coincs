@@ -54,17 +54,30 @@ else:
     raise ValueError("Too many command line arguments.")
 
 
-# Late imports.
+# Python standard library imports.
 import os
-import numpy as np
-from glue import segments
-from glue.ligolw import ligolw, lsctables, table, utils
+
+# LIGO-LW XML imports.
+from glue.ligolw import ligolw
+from pylal import llwapp as ligolw_app
 from glue.ligolw.utils import process as ligolw_process
-from glue import lal
+from glue.ligolw import table as ligolw_table
+from pylal import ligolw_thinca
+from glue.ligolw import utils as ligolw_utils
+from glue.ligolw import lsctables
+
+# glue, LAL and pylal imports.
 from pylal.xlal import inject
-from pylal import ligolw_thinca, llwapp
-from bayestar_localization import misc
+from glue import segments
+from glue import lal
 import swiglal, swiglalsimulation
+
+# BAYESTAR imports.
+from bayestar_localization import misc
+
+# Other imports.
+import numpy as np
+
 
 # Open output file.
 out_xmldoc = ligolw.Document()
@@ -78,15 +91,15 @@ process = ligolw_process.register_to_xmldoc(out_xmldoc, parser.get_prog_name(),
 all_time = segments.segment([lal.LIGOTimeGPS(0), lal.LIGOTimeGPS(2e9)])
 search_summary_table = lsctables.New(lsctables.SearchSummaryTable)
 out_xmldoc.childNodes[0].appendChild(search_summary_table)
-summary = llwapp.append_search_summary(out_xmldoc, process, inseg=all_time,
+summary = ligolw_app.append_search_summary(out_xmldoc, process, inseg=all_time,
     outseg=all_time)
 
 # Read injection file.
-xmldoc = utils.load_filename(infilename,
+xmldoc = ligolw_utils.load_filename(infilename,
     gz=(os.path.splitext(infilename) == '.gz'))
 
 # Extract simulation table from injection file.
-sim_inspiral_table = table.get_table(xmldoc,
+sim_inspiral_table = ligolw_table.get_table(xmldoc,
     lsctables.SimInspiralTable.tableName)
 
 # Create a SnglInspiral table and initialize its row ID counter.
@@ -95,7 +108,7 @@ out_xmldoc.childNodes[0].appendChild(sngl_inspiral_table)
 sngl_inspiral_table.set_next_id(lsctables.SnglInspiralID(0))
 
 # Create a time slide entry.  Needed for coinc_event rows.
-time_slide_id = llwapp.get_time_slide_id(out_xmldoc,
+time_slide_id = ligolw_app.get_time_slide_id(out_xmldoc,
     dict((ifo, 0) for ifo in opts.detector), create_new=process)
 
 # Create a CoincDef table and record a CoincDef row for
@@ -223,5 +236,5 @@ for sim_inspiral in sim_inspiral_table:
 ligolw_process.set_process_end_time(process)
 
 # Write output file.
-utils.write_filename(out_xmldoc, opts.output,
+ligolw_utils.write_filename(out_xmldoc, opts.output,
     gz=(os.path.splitext(opts.output)==".gz"))
