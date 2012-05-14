@@ -217,7 +217,7 @@ static double inner_integrand(double x, void *params)
             * gsl_sf_bessel_I0_scaled(I0_arg);
     }
 
-    return ret * x * x;
+    return ret * onebyx;
 }
 
 
