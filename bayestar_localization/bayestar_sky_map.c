@@ -221,6 +221,20 @@ static double inner_integrand(double x, void *params)
 }
 
 
+static void my_gsl_error(const char * reason, const char * file, int line, int gsl_errno)
+{
+    switch (gsl_errno)
+    {
+        case GSL_EMAXITER:
+            /* Suppress 'maximum number of subdivisions reached' errors. */
+            break;
+        default:
+            /* Use default GSL error handler for all other errors. */
+            gsl_error(reason, file, line, errno);
+    }
+}
+
+
 int bayestar_sky_map_tdoa_snr(
     long npix, /* Input: number of HEALPix pixels. */
     double *P, /* Output: pre-allocated array of length npix to store posterior map. */
@@ -239,7 +253,7 @@ int bayestar_sky_map_tdoa_snr(
     long i;
     double d1[nifos];
     gsl_permutation *pix_perm = NULL;
-    gsl_integration_glfixed_table *glfixed_table = NULL;
+    gsl_error_handler_t *old_handler = gsl_set_error_handler(my_gsl_error);
 
     /* Precalculate trigonometric that occur in the integrand. */
     double u4_6u2_1[INTEGRAND_COUNT_NODES];
@@ -276,11 +290,6 @@ int bayestar_sky_map_tdoa_snr(
     /* Allocate temporary spaces. */
     pix_perm = gsl_permutation_alloc(npix);
     if (!pix_perm)
-        goto fail;
-
-    /* Precalculate weights and nodes for Gaussian quadrature. */
-    glfixed_table = gsl_integration_glfixed_table_alloc(32);
-    if (!glfixed_table)
         goto fail;
 
     /* Rescale distances so that furthest horizon distance is 1. */
@@ -376,8 +385,13 @@ int bayestar_sky_map_tdoa_snr(
 
         /* Perform Gaussian quadrature over luminosity distance. */
         {
+            double result = NAN, abserr = NAN;
             const gsl_function func = {inner_integrand, &params};
-            P[ipix] *= gsl_integration_glfixed(&func, 0.05, 4, glfixed_table);
+            static const size_t subdivision_limit = 8;
+            gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(subdivision_limit);
+            gsl_integration_qag(&func, 0.05, 2, DBL_MIN, 0.01, subdivision_limit, GSL_INTEG_GAUSS21, workspace, &result, &abserr);
+            gsl_integration_workspace_free(workspace);
+            P[ipix] *= result;
         }
     }
 
@@ -400,6 +414,6 @@ int bayestar_sky_map_tdoa_snr(
     ret = 0;
 fail:
     gsl_permutation_free(pix_perm);
-    gsl_integration_glfixed_table_free(glfixed_table);
+    gsl_set_error_handler(old_handler);
     return ret;
 }
