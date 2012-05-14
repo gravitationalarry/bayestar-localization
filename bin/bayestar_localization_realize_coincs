@@ -40,7 +40,10 @@ parser = OptionParser(description=__doc__,
             help="Name of output file (default=stdout)"),
         Option("--detector", metavar='|'.join(available_ifos), action="append",
             help="Detectors to use.  May be specified multiple times.",
-            choices=available_ifos)
+            choices=available_ifos),
+        Option("--toa-error-from-estimator", action="store_true", default=False,
+            help="Compute time-of-arrival measurement error from estimate of " +
+            "amplitude, rather than true value.")
     ]
 )
 opts, args = parser.parse_args()
@@ -187,14 +190,28 @@ for sim_inspiral in sim_inspiral_table:
     # Convert SNR to a complex vector.
     snrs = snrs[0] + snrs[1] * 1j
 
-    # Estimate TOA uncertainty using CRLB evaluated at TRUE values of the SNRs.
-    s_toas = misc.toa_uncertainty(snrs, bandwidths)
+    if opts.toa_error_from_estimator:
+        # If user asked, apply noise to amplitudes /before/ adding noise to TOAs.
 
-    # Add noise to TOA estimates.
-    toas += np.random.randn(len(toas)) * s_toas
+        # Add noise to SNR estimates.
+        snrs += np.random.randn(len(snrs)) + np.random.randn(len(snrs)) * 1j
 
-    # Add noise to SNR estimates.
-    snrs += np.random.randn(len(snrs)) + np.random.randn(len(snrs)) * 1j
+        # Estimate TOA uncertainty using CRLB evaluated at TRUE values of the SNRs.
+        s_toas = misc.toa_uncertainty(snrs, bandwidths)
+
+        # Add noise to TOA estimates.
+        toas += np.random.randn(len(toas)) * s_toas
+    else:
+        # Otherwise, by defualt, apply noise to TOAs first.
+
+        # Estimate TOA uncertainty using CRLB evaluated at TRUE values of the SNRs.
+        s_toas = misc.toa_uncertainty(snrs, bandwidths)
+
+        # Add noise to TOA estimates.
+        toas += np.random.randn(len(toas)) * s_toas
+
+        # Add noise to SNR estimates.
+        snrs += np.random.randn(len(snrs)) + np.random.randn(len(snrs)) * 1j
 
     # Add Coinc table entry.
     coinc = lsctables.Coinc()
