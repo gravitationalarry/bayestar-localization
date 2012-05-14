@@ -177,14 +177,14 @@ for sim_inspiral in sim_inspiral_table:
     F = np.asarray([inject.XLALComputeDetAMResponse(response, ra, dec, 0, gmst)
         for response in responses]).T
 
-    # Compute TOAs at each detector
+    # Compute TOAs at each detector.
     toas = np.asarray([swiglal.XLALTimeDelayFromEarthCenter(location, ra, dec,
         epoch) for location in locations])
 
-    # Compute SNR in each detector
+    # Compute SNR in each detector.
     snrs = np.asarray(M * (F * horizons / DL))
 
-    # Convert SNR to a complex vector
+    # Convert SNR to a complex vector.
     snrs = snrs[0] + snrs[1] * 1j
 
     # Estimate TOA uncertainty using CRLB evaluated at TRUE values of the SNRs.
