@@ -165,6 +165,8 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     double **locations = NULL;
     double *horizons;
 
+    double min_distance, max_distance;
+
     npy_intp dims[1];
     PyObject *out = NULL, *ret = NULL;
     double *P;
@@ -172,12 +174,12 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
 
     /* Names of arguments */
     static char *keywords[] = {"nside", "gmst", "toas", "snrs",
-        "toa_variances", "responses", "locations", "horizons", NULL};
+        "toa_variances", "responses", "locations", "horizons", "min_distance", "max_distance", NULL};
 
     /* Parse arguments */
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ldOOOOOO|", keywords,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ldOOOOOOdd|", keywords,
         &nside, &gmst, &toas_obj, &snrs_obj, &toa_variances_obj,
-        &responses_obj, &locations_obj, &horizons_obj)) goto fail;
+        &responses_obj, &locations_obj, &horizons_obj, &min_distance, &max_distance)) goto fail;
 
     npix = nside2npix(nside);
     if (npix < 0)
@@ -297,7 +299,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     }
     horizons = PyArray_DATA(horizons_npy);
 
-    result = bayestar_sky_map_tdoa_snr(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons);
+    result = bayestar_sky_map_tdoa_snr(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons, min_distance, max_distance);
     if (ret != 0)
     {
         PyErr_SetFromErrno(PyExc_RuntimeError);

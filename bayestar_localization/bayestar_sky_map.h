@@ -42,7 +42,9 @@ int bayestar_sky_map_tdoa_snr(
     const double *toas, /* Input: array of times of arrival with arbitrary relative offset. (Make toas[0] == 0.) */
     const double complex *snrs, /* Input: array of SNRs. */
     const double *s2_toas, /* Measurement variance of TOAs. */
-    const double *horizons /* Distances at which a source would produce an SNR of 1 in each detector. */
+    const double *horizons, /* Distances at which a source would produce an SNR of 1 in each detector. */
+    double min_distance,
+    double max_distance
 );
 
 #endif /* BAYESTAR_SKY_MAP_H */

@@ -193,45 +193,17 @@ int bayestar_sky_map_tdoa(
 #define INTEGRAND_COUNT_SAMPLES (INTEGRAND_COUNT_NODES * INTEGRAND_COUNT_NODES)
 
 
-typedef struct {
-    double args[INTEGRAND_COUNT_SAMPLES][2];
-} inner_integrand_params;
-
-
-static double inner_integrand(double x, void *params)
+/* Inner (radial) integrand. */
+static double inner_integrand(double log_x, void *params)
 {
-    const inner_integrand_params *my_params = (inner_integrand_params *) params;
+    const double a = *(const double *) params;
 
     /* We'll need to divide by 1/x and also 1/x^2. We can save one division by
      * computing 1/x and then squaring it. */
-    const double onebyx = 1 / x;
+    const double onebyx = exp(-log_x);
     const double onebyx2 = onebyx * onebyx;
-
-    double ret;
-    int i;
-
-    for (ret = 0, i = 0; i < INTEGRAND_COUNT_SAMPLES; i ++)
-    {
-        const double I0_arg = onebyx * my_params->args[i][1];
-        ret += exp(I0_arg + onebyx2 * my_params->args[i][0])
-            * gsl_sf_bessel_I0_scaled(I0_arg);
-    }
-
-    return ret * onebyx;
-}
-
-
-static void my_gsl_error(const char * reason, const char * file, int line, int gsl_errno)
-{
-    switch (gsl_errno)
-    {
-        case GSL_EMAXITER:
-            /* Suppress 'maximum number of subdivisions reached' errors. */
-            break;
-        default:
-            /* Use default GSL error handler for all other errors. */
-            gsl_error(reason, file, line, errno);
-    }
+    const double I0_arg = onebyx / a;
+    return exp(I0_arg - 0.5 * onebyx2) * gsl_sf_bessel_I0_scaled(I0_arg);
 }
 
 
@@ -245,7 +217,9 @@ int bayestar_sky_map_tdoa_snr(
     const double *toas, /* Input: array of times of arrival with arbitrary relative offset. (Make toas[0] == 0.) */
     const double complex *snrs, /* Input: array of SNRs. */
     const double *s2_toas, /* Measurement variance of TOAs. */
-    const double *horizons /* Distances at which a source would produce an SNR of 1 in each detector. */)
+    const double *horizons, /* Distances at which a source would produce an SNR of 1 in each detector. */
+    double min_distance,
+    double max_distance)
 {
     long nside;
     long maxpix;
@@ -253,7 +227,10 @@ int bayestar_sky_map_tdoa_snr(
     long i;
     double d1[nifos];
     gsl_permutation *pix_perm = NULL;
-    gsl_error_handler_t *old_handler = gsl_set_error_handler(my_gsl_error);
+
+    static const size_t subdivision_limit = 64;
+    static const double y1 = 0.01, y2 = 0.005;
+    const double upper_breakpoint_default = (log(y2) - sqrt(log(y1) * log(y2))) / (sqrt(-2 * log(y2)) * (log(y2) - log(y1)));
 
     /* Precalculate trigonometric that occur in the integrand. */
     double u4_6u2_1[INTEGRAND_COUNT_NODES];
@@ -301,6 +278,8 @@ int bayestar_sky_map_tdoa_snr(
                 d1max = d1[i];
         for (i = 0; i < nifos; i ++)
             d1[i] /= d1max;
+        min_distance /= d1max;
+        max_distance /= d1max;
     }
 
     /* Evaluate posterior term only first. */
@@ -327,48 +306,52 @@ int bayestar_sky_map_tdoa_snr(
     #pragma omp parallel for
     for (i = 0; i < maxpix; i ++)
     {
-        int j;
         long ipix = gsl_permutation_get(pix_perm, npix - i - 1);
-        inner_integrand_params params;
 
-        /* Evaluate integrand on a regular lattice in psi and cos(i). */
+        double e, f, g;
+        double c1, c2, c3, c4;
         {
-            double e, f, g;
-            double c1, c2, c3, c4;
+            int j;
+            double theta, phi;
+            double a, b, c, d;
+            pix2ang_ring(nside, ipix, &theta, &phi);
+            for (j = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0; j < nifos; j ++)
             {
-                double theta, phi;
-                double a, b, c, d;
-                pix2ang_ring(nside, ipix, &theta, &phi);
-                for (j = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0; j < nifos; j ++)
-                {
-                    double Fp, Fx;
-                    XLALComputeDetAMResponse(&Fp, &Fx, responses[j], phi, M_PI_2 - theta, 0, gmst);
-                    Fp *= d1[j];
-                    Fx *= d1[j];
-                    a += Fp * creal(snrs[j]);
-                    b += Fx * cimag(snrs[j]);
-                    c += Fx * creal(snrs[j]);
-                    d += Fp * cimag(snrs[j]);
-                    g += Fp * Fx;
-                    Fp *= Fp;
-                    Fx *= Fx;
-                    e += Fp + Fx;
-                    f += Fp - Fx;
-                }
-                c1 = a * b - c * d;
-                c4 = (a * c + b * d) / 4;
-                a *= a;
-                b *= b;
-                c *= c;
-                d *= d;
-                c2 = (a + b + c + d) / 8;
-                c3 = (a - b - c + d) / 8;
+                double Fp, Fx;
+                XLALComputeDetAMResponse(&Fp, &Fx, responses[j], phi, M_PI_2 - theta, 0, gmst);
+                Fp *= d1[j];
+                Fx *= d1[j];
+                a += Fp * creal(snrs[j]);
+                b += Fx * cimag(snrs[j]);
+                c += Fx * creal(snrs[j]);
+                d += Fp * cimag(snrs[j]);
+                g += Fp * Fx;
+                Fp *= Fp;
+                Fx *= Fx;
+                e += Fp + Fx;
+                f += Fp - Fx;
             }
-            e /= -16;
-            f /= -16;
-            g /= -16;
+            c1 = a * b - c * d;
+            c4 = (a * c + b * d) / 4;
+            a *= a;
+            b *= b;
+            c *= c;
+            d *= d;
+            c2 = (a + b + c + d) / 8;
+            c3 = (a - b - c + d) / 8;
+        }
+        e /= 8;
+        f /= 8;
+        g /= 8;
 
-            for (j = 0; j < INTEGRAND_COUNT_NODES; j ++)
+        /* Evaluate integral on a regular lattice in psi and cos(i) and using
+         * adaptive quadrature over log(distance). */
+        {
+            gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(subdivision_limit);
+            int j;
+            double accum;
+
+            for (accum = 0, j = 0; j < INTEGRAND_COUNT_NODES; j ++)
             {
                 const double args0 = u4_6u2_1[j] * e;
                 const double args1 = u3_u[j] * c1 + u4_6u2_1[j] * c2;
@@ -376,22 +359,31 @@ int bayestar_sky_map_tdoa_snr(
 
                 for (k = 0; k < INTEGRAND_COUNT_NODES; k ++)
                 {
-                    int l = j * INTEGRAND_COUNT_NODES + k;
-                    params.args[l][0] = args0 + u4_2u2_1[j] * (f * cosines[k] + g * sines[k]);
-                    params.args[l][1] = sqrt(args1 + u4_2u2_1[j] * (c3 * cosines[k] + c4 * sines[k]));
+                    int num_breakpoints = 0;
+                    double result, abserr;
+                    const double num = args1 + u4_2u2_1[j] * (c3 * cosines[k] + c4 * sines[k]);
+                    const double den = args0 + u4_2u2_1[j] * (f * cosines[k] + g * sines[k]);
+                    const double a2 = den / num;
+                    const double a = sqrt(a2);
+                    const double sqrt_den = sqrt(den);
+                    const double x1 = min_distance / sqrt_den;
+                    const double x2 = max_distance / sqrt_den;
+                    const double lower_breakpoint = (a - a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1));
+                    const double upper_breakpoint = (a < 1 / sqrt(-2 * log(y2))) ? ((a + a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1))) : upper_breakpoint_default;
+                    const gsl_function func = {inner_integrand, &a};
+                    double breakpoints[4];
+                    breakpoints[num_breakpoints++] = log(x1);
+                    if (lower_breakpoint > x1 && lower_breakpoint < x2)
+                        breakpoints[num_breakpoints++] = log(lower_breakpoint);
+                    if (upper_breakpoint > x1 && upper_breakpoint < x2)
+                        breakpoints[num_breakpoints++] = log(upper_breakpoint);
+                    breakpoints[num_breakpoints++] = log(x2);
+                    gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
+                    accum += result;
                 }
             }
-        }
-
-        /* Perform Gaussian quadrature over luminosity distance. */
-        {
-            double result = NAN, abserr = NAN;
-            const gsl_function func = {inner_integrand, &params};
-            static const size_t subdivision_limit = 8;
-            gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(subdivision_limit);
-            gsl_integration_qag(&func, 0.05, 2, DBL_MIN, 0.01, subdivision_limit, GSL_INTEG_GAUSS21, workspace, &result, &abserr);
             gsl_integration_workspace_free(workspace);
-            P[ipix] *= result;
+            P[ipix] *= accum;
         }
     }
 
@@ -414,6 +406,5 @@ int bayestar_sky_map_tdoa_snr(
     ret = 0;
 fail:
     gsl_permutation_free(pix_perm);
-    gsl_set_error_handler(old_handler);
     return ret;
 }

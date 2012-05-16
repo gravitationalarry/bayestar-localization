@@ -26,11 +26,20 @@ from optparse import Option, OptionParser
 opts, args = OptionParser(
     option_list = [
         Option("--nside", "-n", type=int, default=128,
-            help="HEALPix lateral resolution (default=128)")
+            help="HEALPix lateral resolution (default=128)"),
+        Option("--min-distance", type=float,
+            help="Minimum distance of prior in kpc"),
+        Option("--max-distance", type=float,
+            help="Maximum distance prior in kpc")
     ]
 ).parse_args()
 
 infilename = args[0]
+
+if opts.min_distance is None:
+    raise ValueError("Missing required argument --min-distance")
+if opts.max_distance is None:
+    raise ValueError("Missing required argument --max-distance")
 
 
 # Python standard library imports.
@@ -239,7 +248,7 @@ for sim_coinc in coinc_table:
 
     # Time and run sky localization.
     start_time = time.time()
-    sky_map = bayestar_localization.sky_map_tdoa_snr(opts.nside, gmst, toas, snrs, s2_toas, responses, locations, horizons)
+    sky_map = bayestar_localization.sky_map_tdoa_snr(opts.nside, gmst, toas, snrs, s2_toas, responses, locations, horizons, opts.min_distance * 1e-3, opts.max_distance * 1e-3)
     end_time = time.time()
 
     # Compute elapsed time.
