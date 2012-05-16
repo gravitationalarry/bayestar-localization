@@ -27,8 +27,8 @@
 
 #include <chealpix.h>
 
-#include <gsl/gsl_sf_bessel.h>
 #include <gsl/gsl_integration.h>
+#include <gsl/gsl_sf_bessel.h>
 #include <gsl/gsl_sort_vector_double.h>
 #include <gsl/gsl_vector.h>
 
