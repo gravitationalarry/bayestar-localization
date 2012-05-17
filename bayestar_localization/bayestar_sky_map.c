@@ -444,8 +444,8 @@ int bayestar_sky_map_tdoa_snr(
     /* Normalize posterior. */
     {
         /* Find maximum of log posterior. */
-        double accum = P[gsl_permutation_get(pix_perm, 0)];
-        for (i = 1; i < npix; i ++)
+        double accum;
+        for (accum = P[0], i = 1; i < npix; i ++)
         {
             double new_log_p = P[i];
             if (new_log_p > accum)
