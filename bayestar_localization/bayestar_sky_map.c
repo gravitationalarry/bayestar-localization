@@ -234,7 +234,10 @@ int bayestar_sky_map_tdoa_snr(
     double d1[nifos];
     gsl_permutation *pix_perm = NULL;
 
+    /* Maximum number of subdivisions for adaptive integration. */
     static const size_t subdivision_limit = 64;
+
+    /* Constants that determine how much of the peak in the likelihood to enclose in integration break points. */
     static const double y1 = 0.01, y2 = 0.005;
     const double upper_breakpoint_default = (log(y2) - sqrt(log(y1) * log(y2))) / (sqrt(-2 * log(y2)) * (log(y2) - log(y1)));
 
@@ -314,6 +317,7 @@ int bayestar_sky_map_tdoa_snr(
     {
         long ipix = gsl_permutation_get(pix_perm, npix - i - 1);
 
+        /* Pre-compute some coefficients in the integrand that are determined by antenna factors and SNR. */
         double e, f, g;
         double c1, c2, c3, c4;
         {
@@ -353,39 +357,66 @@ int bayestar_sky_map_tdoa_snr(
         /* Evaluate integral on a regular lattice in psi and cos(i) and using
          * adaptive quadrature over log(distance). */
         {
+            /* Prepare workspace for adaptive integrator. */
             gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(subdivision_limit);
+
             int j;
             double accum;
 
+            /* Loop over cos(i). */
             for (accum = -INFINITY, j = 0; j < INTEGRAND_COUNT_NODES; j ++)
             {
+                /* Coefficients in integrand that are determined by antenna factors, SNR, and cos(i), but not psi. */
                 const double args0 = u4_6u2_1[j] * e;
                 const double args1 = u3_u[j] * c1 + u4_6u2_1[j] * c2;
+
                 int k;
 
+                /* Loop over psi. */
                 for (k = 0; k < INTEGRAND_COUNT_NODES; k ++)
                 {
-                    int num_breakpoints = 0;
+                    /* Variables to store output from integrator. */
                     double result, abserr;
+
+                    /* Coefficients in integrand that are determined by antenna factors, SNR, cos(i), and psi. */
                     const double num = args1 + u4_2u2_1[j] * (c3 * cosines[k] + c4 * sines[k]);
                     const double den = args0 + u4_2u2_1[j] * (f * cosines[k] + g * sines[k]);
                     const double a2 = den / num;
                     const double a = sqrt(a2);
                     const double sqrt_den = sqrt(den);
-                    const double x1 = min_distance / sqrt_den;
-                    const double x2 = max_distance / sqrt_den;
-                    const double lower_breakpoint = (a - a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1));
-                    const double upper_breakpoint = (a < 1 / sqrt(-2 * log(y2))) ? ((a + a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1))) : upper_breakpoint_default;
+
+                    /* Create data structures for integrand callback. */
                     const inner_integrand_params integrand_params = {a, 0.5 / a2};
                     const gsl_function func = {inner_integrand, &integrand_params};
+
+                    /* Limits of integration. */
+                    const double x1 = min_distance / sqrt_den;
+                    const double x2 = max_distance / sqrt_den;
+
+                    /* Find break points in integration interval that enclose the peak in the likelihood function. */
+                    const double lower_breakpoint = (a - a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1));
+                    const double upper_breakpoint = (a < 1 / sqrt(-2 * log(y2)))
+                        ? ((a + a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1)))
+                        : upper_breakpoint_default;
+
+                    /* Create list of integration break points. */
                     double breakpoints[4];
+                    int num_breakpoints = 0;
+                    /* Always start with lower limit of integration. */
                     breakpoints[num_breakpoints++] = log(x1);
+                    /* If integration interval contains lower break point, add it. */
                     if (lower_breakpoint > x1 && lower_breakpoint < x2)
                         breakpoints[num_breakpoints++] = log(lower_breakpoint);
+                    /* If integration interval contains upper break point, add it too. */
                     if (upper_breakpoint > x1 && upper_breakpoint < x2)
                         breakpoints[num_breakpoints++] = log(upper_breakpoint);
+                    /* Always end with upper limit of integration. */
                     breakpoints[num_breakpoints++] = log(x2);
+
+                    /* Perform adaptive integration. Stop when a relative accuracy of 0.01 has been reached. */
                     gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
+
+                    /* Accumulate the (log) posterior for this cos(i) and psi. */
                     {
                         double max_log_p;
                         result = log(result) + integrand_params.log_offset;
@@ -394,7 +425,11 @@ int bayestar_sky_map_tdoa_snr(
                     }
                 }
             }
+
+            /* Discard workspace for adaptive integrator. */
             gsl_integration_workspace_free(workspace);
+
+            /* Accumulate (log) posterior terms for SNR and TDOA. */
             P[ipix] = log(P[ipix]) + log(accum);
         }
     }
@@ -408,24 +443,29 @@ int bayestar_sky_map_tdoa_snr(
 
     /* Normalize posterior. */
     {
+        /* Find maximum of log posterior. */
         double accum = P[gsl_permutation_get(pix_perm, 0)];
         for (i = 1; i < npix; i ++)
         {
-            double new_log_p = P[gsl_permutation_get(pix_perm, i)];
+            double new_log_p = P[i];
             if (new_log_p > accum)
                 accum = new_log_p;
         }
+
+        /* Subtract off maximum of log posterior, and then exponentiate to get the posterior itself. */
         for (i = 0; i < npix; i ++)
-        {
-            long ipix = gsl_permutation_get(pix_perm, i);
-            P[ipix] = exp(P[ipix] - accum);
-        }
+            P[i] = exp(P[i] - accum);
+
+        /* Sum posterior to get normalization. */
         for (accum = 0, i = 0; i < npix; i ++)
             accum += P[gsl_permutation_get(pix_perm, npix - i - 1)];
+
+        /* Normalize posterior. */
         for (i = 0; i < npix; i ++)
             P[i] /= accum;
     }
 
+    /* Done !*/
     ret = 0;
 fail:
     gsl_permutation_free(pix_perm);
