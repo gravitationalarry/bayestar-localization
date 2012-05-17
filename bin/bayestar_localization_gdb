@@ -1,0 +1,134 @@
+#!/usr/bin/env python
+#
+# Copyright (C) 2012  Leo Singer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
+from __future__ import division
+"""
+Generate a sky map for a GraCEDb event by extracting times of arrival and SNRs
+for the coinc_inspiral record that is present in a LIGO LW-XML file.
+"""
+__author__ = "Leo Singer <leo.singer@ligo.org>"
+
+
+# Command line interface.
+from optparse import Option, OptionParser
+opts, args = OptionParser(
+    description = __doc__,
+    usage = "%prog [INPUT.xml[.gz]] [options] -o OUTPUT.fits[.gz]",
+    option_list = [
+        Option("--nside", "-n", type=int, default=128,
+            help="HEALPix lateral resolution (default=128)"),
+        Option("--f-lower", type=float, default=10, metavar="Hz",
+            help="Low frequency cutoff (default=10)"),
+        Option("--output", "-o", metavar="OUTPUT.fits[.gz]",
+            help="Name of output file (required)")
+    ]
+).parse_args()
+
+if len(args) == 0:
+    infilename = "/dev/stdin"
+elif len(args) == 1:
+    infilename = args[0]
+else:
+    raise ValueError("Too many command line arguments")
+
+
+# Python standard library imports.
+import os
+
+# LIGO-LW XML imports.
+from glue.ligolw import table as ligolw_table
+from glue.ligolw import utils as ligolw_utils
+from glue.ligolw import lsctables
+
+# glue, LAL and pylal imports.
+from pylal import date
+import swiglal
+import swiglalsimulation
+
+# BAYESTAR imports.
+from bayestar import io
+import bayestar_localization
+from bayestar_localization import misc
+
+# Other imports.
+import healpy as hp
+import numpy as np
+
+def complex_from_polar(r, phi):
+    return r * (np.cos(phi) + np.sin(phi) * 1j)
+
+# Read input file.
+xmldoc = ligolw_utils.load_filename(infilename,
+    gz=(os.path.splitext(infilename) == '.gz'))
+
+# Locate the tables that we need.
+coinc_inspiral_table = ligolw_table.get_table(xmldoc, lsctables.CoincInspiralTable.tableName)
+coinc_map_table = ligolw_table.get_table(xmldoc, lsctables.CoincMapTable.tableName)
+sngl_inspiral_table = ligolw_table.get_table(xmldoc, lsctables.SnglInspiralTable.tableName)
+
+# Locate the sngl_inspiral rows that we need.
+coinc_inspiral = coinc_inspiral_table[0]
+coinc_event_id = coinc_inspiral.coinc_event_id
+event_ids = [coinc_map.event_id for coinc_map in coinc_map_table if coinc_map.coinc_event_id == coinc_event_id]
+sngl_inspirals = [(sngl_inspiral for sngl_inspiral in sngl_inspiral_table if sngl_inspiral.event_id == event_id).next() for event_id in event_ids]
+
+ifos = [sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals]
+
+# Unpack some values from the rows in the tables.
+mchirp = coinc_inspiral.mchirp
+mtotal = coinc_inspiral.mass
+f_low = opts.f_lower
+f_high = 4400 / mtotal
+
+# Extract SNRs and TOAs from sngl_inspiral rows.
+snrs = np.asarray([complex_from_polar(sngl_inspiral.snr, sngl_inspiral.coa_phase)
+    for sngl_inspiral in sngl_inspirals])
+toas_ns = np.asarray([sngl_inspiral.get_end().ns()
+    for sngl_inspiral in sngl_inspirals])
+mean_toa_ns = sum(toas_ns) // len(toas_ns)
+toas = 1e-9 * (toas_ns - mean_toa_ns)
+epoch = date.XLALINT8NSToGPS(mean_toa_ns)
+gmst = date.XLALGreenwichMeanSiderealTime(epoch)
+
+# Get SNR=1 horizon distances for each detector.
+horizons = np.asarray([
+    misc.get_horizon_distance(ifo, mchirp, f_low, f_high)
+    for ifo in ifos])
+
+min_distance = 0.5 * min(horizons) / 8
+max_distance = 2 * max(horizons) / 8
+
+# Get effective bandwidths for each detector.
+bandwidths = np.asarray([
+    misc.get_effective_bandwidth(ifo, f_low, f_high)
+    for ifo in ifos])
+
+# Estimate TOA uncertainty (squared) using CRLB evaluated at MEASURED
+# values of the SNRs.
+s2_toas = misc.toa_uncertainty(snrs, bandwidths) ** 2
+
+# Look up physical parameters for detector.
+detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(str(ifo))
+    for ifo in ifos]
+responses = [det.response for det in detectors]
+locations = [det.location for det in detectors]
+
+# TOA+SNR sky localization
+sky_map = bayestar_localization.sky_map_tdoa_snr(opts.nside, gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance)
+
+# Write sky map
+io.write_skymap(opts.output, skymap=sky_map, gps=float(epoch))
