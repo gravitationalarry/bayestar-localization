@@ -25,9 +25,14 @@ import numpy as np
 import swiglal, swiglalsimulation
 
 
+def mchirp(m1=1.4, m2=1.4):
+    """Find chirp mass from component masses."""
+    return (m1 * m2) ** 0.6 * (m1 + m2) ** -0.2
+
+
 def get_noise_psd_func(ifo):
     """Find a function that describes the given interferometer's noise PSD."""
-    if ifo in ("H1", "L1", "I1"):
+    if ifo in ("H1", "H2", "L1", "I1"):
         func = swiglalsimulation.XLALSimNoisePSDaLIGOZeroDetHighPower
     elif ifo == "V1":
         func = swiglalsimulation.XLALSimNoisePSDAdvVirgo
@@ -38,12 +43,12 @@ def get_noise_psd_func(ifo):
     return func
 
 
-def get_horizon_distance(ifo, m1=1.4, m2=1.4, f_low=10., f_high=1560., snr_thresh=1):
+def get_horizon_distance(ifo, mchirp=mchirp(1.4, 1.4), f_low=10., f_high=1560., snr_thresh=1):
     """Compute the distance at which a source would produce a maximum SNR of
     snr_thresh in the given interferometer."""
 
     # Chirp mass in seconds.
-    mchirp = swiglal.LAL_MTSUN_SI * (m1 * m2) ** 0.6 * (m1 + m2) ** -0.2
+    tchirp = swiglal.LAL_MTSUN_SI * mchirp
 
     # Integration step in Hz.
     df = 1.
@@ -57,15 +62,12 @@ def get_horizon_distance(ifo, m1=1.4, m2=1.4, f_low=10., f_high=1560., snr_thres
 
     Dhor = np.sum(f ** (-7/3) / S * df)
     Dhor = np.sqrt(5/6 * Dhor)
-    Dhor *= mchirp ** (5/6) * np.pi ** (-2/3) * swiglal.LAL_C_SI / snr_thresh
+    Dhor *= tchirp ** (5/6) * np.pi ** (-2/3) * swiglal.LAL_C_SI / snr_thresh
     Dhor /= 1e6 * swiglal.LAL_PC_SI
     return Dhor
 
 
-def get_effective_bandwidth(ifo, m1=1.4, m2=1.4, f_low=10., f_high=1560.):
-    # Chirp mass in seconds.
-    mchirp = swiglal.LAL_MTSUN_SI * (m1 * m2) ** 0.6 * (m1 + m2) ** -0.2
-    
+def get_effective_bandwidth(ifo, f_low=10., f_high=1560.):
     # Integration step in Hz.
     df = 1.
 

@@ -178,6 +178,7 @@ for sim_coinc in coinc_table:
     f_high = 4400 / (m1 + m2)
     ra = sim_inspiral.longitude
     dec = sim_inspiral.latitude
+    mchirp = misc.mchirp(m1, m2)
 
     # Extract SNRs and TOAs from sngl_inspiral rows.
     snrs = np.asarray([complex_from_polar(sngl_inspiral.snr, sngl_inspiral.coa_phase)
@@ -191,12 +192,12 @@ for sim_coinc in coinc_table:
 
     # Get SNR=1 horizon distances for each detector.
     horizons = np.asarray([
-        misc.get_horizon_distance(ifo, m1, m2, f_low, f_high)
+        misc.get_horizon_distance(ifo, mchirp, f_low, f_high)
         for ifo in ifos])
 
     # Get effective bandwidths for each detector.
     bandwidths = np.asarray([
-        misc.get_effective_bandwidth(ifo, m1, m2, f_low, f_high)
+        misc.get_effective_bandwidth(ifo, f_low, f_high)
         for ifo in ifos])
 
     # Estimate TOA uncertainty (squared) using CRLB evaluated at MEASURED
