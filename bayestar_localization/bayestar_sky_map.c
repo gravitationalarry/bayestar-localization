@@ -233,7 +233,6 @@ int bayestar_sky_map_tdoa_snr(
     long i;
     double d1[nifos];
     gsl_permutation *pix_perm = NULL;
-    gsl_error_handler_t *old_handler = gsl_set_error_handler_off();
 
     static const size_t subdivision_limit = 64;
     static const double y1 = 0.01, y2 = 0.005;
@@ -367,7 +366,6 @@ int bayestar_sky_map_tdoa_snr(
                 for (k = 0; k < INTEGRAND_COUNT_NODES; k ++)
                 {
                     int num_breakpoints = 0;
-                    int status;
                     double result, abserr;
                     const double num = args1 + u4_2u2_1[j] * (c3 * cosines[k] + c4 * sines[k]);
                     const double den = args0 + u4_2u2_1[j] * (f * cosines[k] + g * sines[k]);
@@ -387,21 +385,7 @@ int bayestar_sky_map_tdoa_snr(
                     if (upper_breakpoint > x1 && upper_breakpoint < x2)
                         breakpoints[num_breakpoints++] = log(upper_breakpoint);
                     breakpoints[num_breakpoints++] = log(x2);
-                    status = gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
-                    if (status)
-                    {
-                        int k;
-                        double logx;
-                        double logx1 = breakpoints[0];
-                        double logx2 = breakpoints[num_breakpoints - 1];
-                        fprintf(stderr, "GSL error: %s\n", gsl_strerror(status));
-                        printf("# a = %g\n", a);
-                        for (k = 0; k < num_breakpoints; k ++)
-                            printf("# Breakpoint %d: %g\n", k, breakpoints[k]);
-                        for (logx = logx1; logx <= logx2; logx += (logx2 - logx1) / 1000)
-                            printf("%g %g\n", logx, GSL_FN_EVAL(&func, logx));
-                        abort();
-                    }
+                    gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
                     {
                         double max_log_p;
                         result = log(result) + integrand_params.log_offset;
@@ -445,6 +429,5 @@ int bayestar_sky_map_tdoa_snr(
     ret = 0;
 fail:
     gsl_permutation_free(pix_perm);
-    gsl_set_error_handler(old_handler);
     return ret;
 }
