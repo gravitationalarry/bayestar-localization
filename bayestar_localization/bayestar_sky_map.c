@@ -430,7 +430,7 @@ int bayestar_sky_map_tdoa_snr(
             gsl_integration_workspace_free(workspace);
 
             /* Accumulate (log) posterior terms for SNR and TDOA. */
-            P[ipix] = log(P[ipix]) + log(accum);
+            P[ipix] = log(P[ipix]) + accum;
         }
     }
 
