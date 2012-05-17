@@ -193,17 +193,23 @@ int bayestar_sky_map_tdoa(
 #define INTEGRAND_COUNT_SAMPLES (INTEGRAND_COUNT_NODES * INTEGRAND_COUNT_NODES)
 
 
+typedef struct {
+    double a;
+    double log_offset;
+} inner_integrand_params;
+
+
 /* Inner (radial) integrand. */
 static double inner_integrand(double log_x, void *params)
 {
-    const double a = *(const double *) params;
+    const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
 
     /* We'll need to divide by 1/x and also 1/x^2. We can save one division by
      * computing 1/x and then squaring it. */
     const double onebyx = exp(-log_x);
     const double onebyx2 = onebyx * onebyx;
-    const double I0_arg = onebyx / a;
-    return exp(I0_arg - 0.5 * onebyx2) * gsl_sf_bessel_I0_scaled(I0_arg);
+    const double I0_arg = onebyx / integrand_params->a;
+    return exp(I0_arg - 0.5 * onebyx2 - integrand_params->log_offset) * gsl_sf_bessel_I0_scaled(I0_arg);
 }
 
 
@@ -227,6 +233,7 @@ int bayestar_sky_map_tdoa_snr(
     long i;
     double d1[nifos];
     gsl_permutation *pix_perm = NULL;
+    gsl_error_handler_t *old_handler = gsl_set_error_handler_off();
 
     static const size_t subdivision_limit = 64;
     static const double y1 = 0.01, y2 = 0.005;
@@ -351,7 +358,7 @@ int bayestar_sky_map_tdoa_snr(
             int j;
             double accum;
 
-            for (accum = 0, j = 0; j < INTEGRAND_COUNT_NODES; j ++)
+            for (accum = -INFINITY, j = 0; j < INTEGRAND_COUNT_NODES; j ++)
             {
                 const double args0 = u4_6u2_1[j] * e;
                 const double args1 = u3_u[j] * c1 + u4_6u2_1[j] * c2;
@@ -360,6 +367,7 @@ int bayestar_sky_map_tdoa_snr(
                 for (k = 0; k < INTEGRAND_COUNT_NODES; k ++)
                 {
                     int num_breakpoints = 0;
+                    int status;
                     double result, abserr;
                     const double num = args1 + u4_2u2_1[j] * (c3 * cosines[k] + c4 * sines[k]);
                     const double den = args0 + u4_2u2_1[j] * (f * cosines[k] + g * sines[k]);
@@ -370,7 +378,8 @@ int bayestar_sky_map_tdoa_snr(
                     const double x2 = max_distance / sqrt_den;
                     const double lower_breakpoint = (a - a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1));
                     const double upper_breakpoint = (a < 1 / sqrt(-2 * log(y2))) ? ((a + a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1))) : upper_breakpoint_default;
-                    const gsl_function func = {inner_integrand, &a};
+                    const inner_integrand_params integrand_params = {a, 0.5 / a2};
+                    const gsl_function func = {inner_integrand, &integrand_params};
                     double breakpoints[4];
                     breakpoints[num_breakpoints++] = log(x1);
                     if (lower_breakpoint > x1 && lower_breakpoint < x2)
@@ -378,12 +387,31 @@ int bayestar_sky_map_tdoa_snr(
                     if (upper_breakpoint > x1 && upper_breakpoint < x2)
                         breakpoints[num_breakpoints++] = log(upper_breakpoint);
                     breakpoints[num_breakpoints++] = log(x2);
-                    gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
-                    accum += result;
+                    status = gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
+                    if (status)
+                    {
+                        int k;
+                        double logx;
+                        double logx1 = breakpoints[0];
+                        double logx2 = breakpoints[num_breakpoints - 1];
+                        fprintf(stderr, "GSL error: %s\n", gsl_strerror(status));
+                        printf("# a = %g\n", a);
+                        for (k = 0; k < num_breakpoints; k ++)
+                            printf("# Breakpoint %d: %g\n", k, breakpoints[k]);
+                        for (logx = logx1; logx <= logx2; logx += (logx2 - logx1) / 1000)
+                            printf("%g %g\n", logx, GSL_FN_EVAL(&func, logx));
+                        abort();
+                    }
+                    {
+                        double max_log_p;
+                        result = log(result) + integrand_params.log_offset;
+                        max_log_p = fmax(result, accum);
+                        accum = log(exp(result - max_log_p) + exp(accum - max_log_p)) + max_log_p;
+                    }
                 }
             }
             gsl_integration_workspace_free(workspace);
-            P[ipix] *= accum;
+            P[ipix] = log(P[ipix]) + log(accum);
         }
     }
 
@@ -391,12 +419,23 @@ int bayestar_sky_map_tdoa_snr(
     for (i = maxpix; i < npix; i ++)
     {
         long ipix = gsl_permutation_get(pix_perm, npix - i - 1);
-        P[ipix] = 0;
+        P[ipix] = -INFINITY;
     }
 
     /* Normalize posterior. */
     {
-        double accum;
+        double accum = P[gsl_permutation_get(pix_perm, 0)];
+        for (i = 1; i < npix; i ++)
+        {
+            double new_log_p = P[gsl_permutation_get(pix_perm, i)];
+            if (new_log_p > accum)
+                accum = new_log_p;
+        }
+        for (i = 0; i < npix; i ++)
+        {
+            long ipix = gsl_permutation_get(pix_perm, i);
+            P[ipix] = exp(P[ipix] - accum);
+        }
         for (accum = 0, i = 0; i < npix; i ++)
             accum += P[gsl_permutation_get(pix_perm, npix - i - 1)];
         for (i = 0; i < npix; i ++)
@@ -406,5 +445,6 @@ int bayestar_sky_map_tdoa_snr(
     ret = 0;
 fail:
     gsl_permutation_free(pix_perm);
+    gsl_set_error_handler(old_handler);
     return ret;
 }
