@@ -22,6 +22,7 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 
 # Command line interface.
+prior_choices = ("uniform in log distance", "uniform in volume")
 from optparse import Option, OptionParser
 opts, args = OptionParser(
     option_list = [
@@ -30,7 +31,9 @@ opts, args = OptionParser(
         Option("--min-distance", type=float,
             help="Minimum distance of prior in kpc"),
         Option("--max-distance", type=float,
-            help="Maximum distance prior in kpc")
+            help="Maximum distance prior in kpc"),
+        Option("--prior", choices=prior_choices, metavar="|".join(prior_choices),
+            help="Distance prior")
     ]
 ).parse_args()
 
@@ -40,6 +43,8 @@ if opts.min_distance is None:
     raise ValueError("Missing required argument --min-distance")
 if opts.max_distance is None:
     raise ValueError("Missing required argument --max-distance")
+if opts.prior is None:
+    raise ValueError("Missing required argument --prior")
 
 
 # Python standard library imports.
@@ -248,7 +253,7 @@ for sim_coinc in coinc_table:
 
     # Time and run sky localization.
     start_time = time.time()
-    sky_map = bayestar_localization.sky_map_tdoa_snr(opts.nside, gmst, toas, snrs, s2_toas, responses, locations, horizons, opts.min_distance * 1e-3, opts.max_distance * 1e-3)
+    sky_map = bayestar_localization.sky_map_tdoa_snr(opts.nside, gmst, toas, snrs, s2_toas, responses, locations, horizons, opts.min_distance * 1e-3, opts.max_distance * 1e-3, opts.prior)
     end_time = time.time()
 
     # Compute elapsed time.

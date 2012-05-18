@@ -191,8 +191,8 @@ typedef struct {
 } inner_integrand_params;
 
 
-/* Inner (radial) integrand. */
-static double inner_integrand(double log_x, void *params)
+/* Radial integrand for uniform-in-log-distance prior. */
+static double radial_integrand_uniform_in_log_distance(double log_x, void *params)
 {
     const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
 
@@ -202,6 +202,21 @@ static double inner_integrand(double log_x, void *params)
     const double onebyx2 = onebyx * onebyx;
     const double I0_arg = onebyx / integrand_params->a;
     return exp(I0_arg - 0.5 * onebyx2 - integrand_params->log_offset) * gsl_sf_bessel_I0_scaled(I0_arg);
+}
+
+
+/* Radial integrand for uniform-in-volume prior. */
+static double radial_integrand_uniform_in_volume(double log_x, void *params)
+{
+    const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
+
+    /* We'll need to divide by 1/x and also 1/x^2. We can save one division by
+     * computing 1/x and then squaring it. */
+    const double onebyx = exp(-log_x);
+    const double onebyx2 = onebyx * onebyx;
+    const double x3 = 1 / (onebyx2 * onebyx);
+    const double I0_arg = onebyx / integrand_params->a;
+    return exp(I0_arg - 0.5 * onebyx2 - integrand_params->log_offset) * gsl_sf_bessel_I0_scaled(I0_arg) * x3;
 }
 
 
@@ -217,13 +232,17 @@ int bayestar_sky_map_tdoa_snr(
     const double *s2_toas, /* Measurement variance of TOAs. */
     const double *horizons, /* Distances at which a source would produce an SNR of 1 in each detector. */
     double min_distance,
-    double max_distance)
+    double max_distance,
+    bayestar_prior_t prior)
 {
     long nside;
     long maxpix;
     long i;
     double d1[nifos];
     gsl_permutation *pix_perm;
+
+    /* Function pointer to hold radial integrand. */
+    double (* radial_integrand) (double x, void *params);
 
     /* Will point to memory for storing GSL return values for each thread. */
     int *gsl_errnos;
@@ -262,6 +281,20 @@ int bayestar_sky_map_tdoa_snr(
     nside = npix2nside(npix);
     if (nside < 0)
         GSL_ERROR("output is not a valid HEALPix array", GSL_EINVAL);
+
+    /* Choose radial integrand function based on selected prior. */
+    switch (prior)
+    {
+        case BAYESTAR_PRIOR_UNIFORM_IN_LOG_DISTANCE:
+            radial_integrand = radial_integrand_uniform_in_log_distance;
+            break;
+        case BAYESTAR_PRIOR_UNIFORM_IN_VOLUME:
+            radial_integrand = radial_integrand_uniform_in_volume;
+            break;
+        default:
+            GSL_ERROR("unrecognized choice of prior", GSL_EINVAL);
+            break;
+    }
 
     /* Rescale distances so that furthest horizon distance is 1. */
     {
@@ -405,8 +438,8 @@ int bayestar_sky_map_tdoa_snr(
                     const double sqrt_den = sqrt(den);
 
                     /* Create data structures for integrand callback. */
-                    const inner_integrand_params integrand_params = {a, 0.5 / a2};
-                    const gsl_function func = {inner_integrand, &integrand_params};
+                    inner_integrand_params integrand_params = {a, 0.5 / a2};
+                    const gsl_function func = {radial_integrand, &integrand_params};
 
                     /* Limits of integration. */
                     const double x1 = min_distance / sqrt_den;
@@ -431,6 +464,9 @@ int bayestar_sky_map_tdoa_snr(
                         breakpoints[num_breakpoints++] = log(upper_breakpoint);
                     /* Always end with upper limit of integration. */
                     breakpoints[num_breakpoints++] = log(x2);
+
+                    if (prior == BAYESTAR_PRIOR_UNIFORM_IN_VOLUME)
+                        integrand_params.log_offset += 3 * log(a);
 
                     {
                         /* Perform adaptive integration. Stop when a relative

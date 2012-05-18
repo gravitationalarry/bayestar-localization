@@ -20,6 +20,14 @@
 #ifndef BAYESTAR_SKY_MAP_H
 #define BAYESTAR_SKY_MAP_H
 
+
+typedef enum
+{
+    BAYESTAR_PRIOR_UNIFORM_IN_LOG_DISTANCE,
+    BAYESTAR_PRIOR_UNIFORM_IN_VOLUME
+} bayestar_prior_t;
+
+
 /* Perform sky localization based on TDOAs alone. */
 int bayestar_sky_map_tdoa(
     long npix, /* Input: number of HEALPix pixels. */
@@ -44,7 +52,8 @@ int bayestar_sky_map_tdoa_snr(
     const double *s2_toas, /* Measurement variance of TOAs. */
     const double *horizons, /* Distances at which a source would produce an SNR of 1 in each detector. */
     double min_distance,
-    double max_distance
+    double max_distance,
+    bayestar_prior_t prior
 );
 
 #endif /* BAYESTAR_SKY_MAP_H */

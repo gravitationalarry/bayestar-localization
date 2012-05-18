@@ -178,6 +178,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
         *locations_obj, *horizons_obj;
 
     PyObject *toas_npy = NULL, *snrs_npy = NULL, *toa_variances_npy = NULL, **responses_npy = NULL, **locations_npy = NULL, *horizons_npy = NULL;
+    char *prior_str = NULL;
 
     double *toas;
     double complex *snrs;
@@ -187,6 +188,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     double *horizons;
 
     double min_distance, max_distance;
+    bayestar_prior_t prior = -1;
 
     npy_intp dims[1];
     PyObject *out = NULL, *ret = NULL;
@@ -196,12 +198,14 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
 
     /* Names of arguments */
     static char *keywords[] = {"nside", "gmst", "toas", "snrs",
-        "toa_variances", "responses", "locations", "horizons", "min_distance", "max_distance", NULL};
+        "toa_variances", "responses", "locations", "horizons",
+        "min_distance", "max_distance", "prior", NULL};
 
     /* Parse arguments */
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ldOOOOOOdd|", keywords,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ldOOOOOOdds|", keywords,
         &nside, &gmst, &toas_obj, &snrs_obj, &toa_variances_obj,
-        &responses_obj, &locations_obj, &horizons_obj, &min_distance, &max_distance)) goto fail;
+        &responses_obj, &locations_obj, &horizons_obj,
+        &min_distance, &max_distance, &prior_str)) goto fail;
 
     npix = nside2npix(nside);
     if (npix < 0)
@@ -321,8 +325,16 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     }
     horizons = PyArray_DATA(horizons_npy);
 
+    if (prior_str)
+    {
+        if (strcmp(prior_str, "uniform in log distance"))
+            prior = BAYESTAR_PRIOR_UNIFORM_IN_LOG_DISTANCE;
+        else if (strcmp(prior_str, "uniform in volume"))
+            prior = BAYESTAR_PRIOR_UNIFORM_IN_VOLUME;
+    }
+
     old_handler = gsl_set_error_handler(my_gsl_error);
-    result = bayestar_sky_map_tdoa_snr(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons, min_distance, max_distance);
+    result = bayestar_sky_map_tdoa_snr(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons, min_distance, max_distance, prior);
     gsl_set_error_handler(old_handler);
     if (result != GSL_SUCCESS)
         goto fail;
