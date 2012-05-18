@@ -169,9 +169,10 @@ int bayestar_sky_map_tdoa(
         if (!pix_perm)
             GSL_ERROR("failed to allocate space for permutation data", GSL_ENOMEM);
         gsl_sort_vector_index(pix_perm, &P_vector.vector);
+        gsl_permutation_reverse(pix_perm);
 
         for (accum = 0, i = 0; i < npix; i ++)
-            accum += P[gsl_permutation_get(pix_perm, npix - i - 1)];
+            accum += P[gsl_permutation_get(pix_perm, i)];
         for (i = 0; i < npix; i ++)
             P[i] /= accum;
         gsl_permutation_free(pix_perm);
@@ -293,14 +294,18 @@ int bayestar_sky_map_tdoa_snr(
         gsl_sort_vector_index(pix_perm, &P_vector.vector);
     }
 
+    /* Reverse the permutation so that the pixel indices are sorted by
+     * descending significance. */
+    gsl_permutation_reverse(pix_perm);
+
     /* Find the number of pixels needed to account for 99.99% of the posterior
      * conditioned on TDOAs. */
     {
         double accum, Ptotal;
         for (Ptotal = 0, i = 0; i < npix; i ++)
-            Ptotal += P[gsl_permutation_get(pix_perm, npix - i - 1)];
+            Ptotal += P[gsl_permutation_get(pix_perm, i)];
         for (accum = 0, maxpix = 0; maxpix < npix && accum <= 0.9999 * Ptotal; maxpix ++)
-            accum += P[gsl_permutation_get(pix_perm, npix - maxpix - 1)];
+            accum += P[gsl_permutation_get(pix_perm, maxpix)];
     }
 
     /* Allocate space to store per-pixel, per-thread error value. */
@@ -320,7 +325,7 @@ int bayestar_sky_map_tdoa_snr(
     #pragma omp parallel for
     for (i = 0; i < maxpix; i ++)
     {
-        long ipix = gsl_permutation_get(pix_perm, npix - i - 1);
+        long ipix = gsl_permutation_get(pix_perm, i);
 
         /* Pre-compute some coefficients in the integrand that are determined by antenna factors and SNR. */
         double e, f, g;
@@ -482,7 +487,7 @@ int bayestar_sky_map_tdoa_snr(
     /* Finish up by zeroing pixels that didn't meet the TDOA cut. */
     for (i = maxpix; i < npix; i ++)
     {
-        long ipix = gsl_permutation_get(pix_perm, npix - i - 1);
+        long ipix = gsl_permutation_get(pix_perm, i);
         P[ipix] = -INFINITY;
     }
 
@@ -503,7 +508,7 @@ int bayestar_sky_map_tdoa_snr(
 
         /* Sum posterior to get normalization. */
         for (accum = 0, i = 0; i < npix; i ++)
-            accum += P[gsl_permutation_get(pix_perm, npix - i - 1)];
+            accum += P[gsl_permutation_get(pix_perm, i)];
 
         /* Normalize posterior. */
         for (i = 0; i < npix; i ++)
