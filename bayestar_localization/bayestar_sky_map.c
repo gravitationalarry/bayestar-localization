@@ -352,7 +352,7 @@ int bayestar_sky_map_tdoa_snr(
         }
         e /= 8;
         f /= 8;
-        g /= 8;
+        g /= 4;
 
         /* Evaluate integral on a regular lattice in psi and cos(i) and using
          * adaptive quadrature over log(distance). */
