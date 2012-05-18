@@ -181,7 +181,7 @@ int bayestar_sky_map_tdoa(
 }
 
 
-#define INTEGRAND_COUNT_NODES 31
+#define INTEGRAND_COUNT_NODES 15
 #define INTEGRAND_COUNT_SAMPLES (INTEGRAND_COUNT_NODES * INTEGRAND_COUNT_NODES)
 
 
@@ -470,8 +470,8 @@ int bayestar_sky_map_tdoa_snr(
 
                     {
                         /* Perform adaptive integration. Stop when a relative
-                         * accuracy of 0.01 has been reached. */
-                        int ret = gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
+                         * accuracy of 0.05 has been reached. */
+                        int ret = gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.05, subdivision_limit, workspace, &result, &abserr);
 
                         /* If the integrator failed, then record the GSL error
                          * value for later reporting when we leave the parallel
