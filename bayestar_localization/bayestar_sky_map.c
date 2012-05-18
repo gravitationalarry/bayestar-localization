@@ -106,13 +106,6 @@ static int bayestar_sky_map_tdoa_not_normalized(
     int ret = -1;
     long i;
 
-    /* Check that none of the inputs are NULL. */
-    if (!P || !locs || !toas || !s2_toas)
-    {
-        errno = EFAULT;
-        goto fail;
-    }
-
     /* Determine the lateral HEALPix resolution. */
     nside = npix2nside(npix);
     if (nside < 0)
@@ -265,13 +258,6 @@ int bayestar_sky_map_tdoa_snr(
     nside = npix2nside(npix);
     if (nside < 0)
         goto fail;
-
-    /* Check that none of the inputs are NULL. */
-    if (!P|| !responses || !locations || !toas || !snrs || !horizons || !s2_toas)
-    {
-        errno = EFAULT;
-        goto fail;
-    }
 
     /* Allocate temporary spaces. */
     pix_perm = gsl_permutation_alloc(npix);
