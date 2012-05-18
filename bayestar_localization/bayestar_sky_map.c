@@ -27,6 +27,7 @@
 
 #include <chealpix.h>
 
+#include <gsl/gsl_errno.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_sf_bessel.h>
 #include <gsl/gsl_sort_vector_double.h>
@@ -103,13 +104,12 @@ static int bayestar_sky_map_tdoa_not_normalized(
 ) {
     double tdoas[nifos - 1], w_tdoas[nifos - 1];
     long nside;
-    int ret = -1;
     long i;
 
     /* Determine the lateral HEALPix resolution. */
     nside = npix2nside(npix);
     if (nside < 0)
-        goto fail;
+        GSL_ERROR("output is not a valid HEALPix array", GSL_EINVAL);
 
     /* Compute time delays on arrival (TDOAS) relative to detector 0,
      * and weights for their measurement uncertainties. */
@@ -144,9 +144,7 @@ static int bayestar_sky_map_tdoa_not_normalized(
     }
 
     /* Done! */
-    ret = 0;
-fail:
-    return ret;
+    return GSL_SUCCESS;
 }
 
 
@@ -161,7 +159,7 @@ int bayestar_sky_map_tdoa(
     const double *s2_toas /* Input: uncertainties in times of arrival. */
 ) {
     int ret = bayestar_sky_map_tdoa_not_normalized(npix, P, gmst, nifos, locs, toas, s2_toas);
-    if (ret == 0)
+    if (ret == GSL_SUCCESS)
     {
         /* Sort pixel indices by ascending significance. */
         double accum;
@@ -169,7 +167,7 @@ int bayestar_sky_map_tdoa(
         gsl_vector_view P_vector = gsl_vector_view_array(P, npix);
         gsl_permutation *pix_perm = gsl_permutation_alloc(npix);
         if (!pix_perm)
-            return -1;
+            GSL_ERROR("failed to allocate space for permutation data", GSL_ENOMEM);
         gsl_sort_vector_index(pix_perm, &P_vector.vector);
 
         for (accum = 0, i = 0; i < npix; i ++)
@@ -222,10 +220,15 @@ int bayestar_sky_map_tdoa_snr(
 {
     long nside;
     long maxpix;
-    int ret = -1;
     long i;
     double d1[nifos];
-    gsl_permutation *pix_perm = NULL;
+    gsl_permutation *pix_perm;
+
+    /* Will point to memory for storing GSL return values for each thread. */
+    int *gsl_errnos;
+
+    /* Storage for old GSL error handler. */
+    gsl_error_handler_t *old_handler;
 
     /* Maximum number of subdivisions for adaptive integration. */
     static const size_t subdivision_limit = 64;
@@ -257,12 +260,7 @@ int bayestar_sky_map_tdoa_snr(
     /* Determine the lateral HEALPix resolution. */
     nside = npix2nside(npix);
     if (nside < 0)
-        goto fail;
-
-    /* Allocate temporary spaces. */
-    pix_perm = gsl_permutation_alloc(npix);
-    if (!pix_perm)
-        goto fail;
+        GSL_ERROR("output is not a valid HEALPix array", GSL_EINVAL);
 
     /* Rescale distances so that furthest horizon distance is 1. */
     {
@@ -278,8 +276,16 @@ int bayestar_sky_map_tdoa_snr(
     }
 
     /* Evaluate posterior term only first. */
-    if (bayestar_sky_map_tdoa_not_normalized(npix, P, gmst, nifos, locations, toas, s2_toas))
-        goto fail;
+    {
+        int ret = bayestar_sky_map_tdoa_not_normalized(npix, P, gmst, nifos, locations, toas, s2_toas);
+        if (ret != GSL_SUCCESS)
+            return ret;
+    }
+
+    /* Allocate temporary spaces. */
+    pix_perm = gsl_permutation_alloc(npix);
+    if (!pix_perm)
+        GSL_ERROR("failed to allocate space for permutation data", GSL_ENOMEM);
 
     /* Sort pixel indices by ascending significance. */
     {
@@ -296,6 +302,19 @@ int bayestar_sky_map_tdoa_snr(
         for (accum = 0, maxpix = 0; maxpix < npix && accum <= 0.9999 * Ptotal; maxpix ++)
             accum += P[gsl_permutation_get(pix_perm, npix - maxpix - 1)];
     }
+
+    /* Allocate space to store per-pixel, per-thread error value. */
+    gsl_errnos = calloc(maxpix, sizeof(int));
+    if (!gsl_errnos)
+    {
+        gsl_permutation_free(pix_perm);
+        GSL_ERROR("failed to allocate space for pixel error status", GSL_ENOMEM);
+    }
+
+    /* Turn off error handler while in parallel section to avoid concurrent
+     * calls to the GSL error handler, which if provided by the user may not
+     * be threadsafe. */
+    old_handler = gsl_set_error_handler_off();
 
     /* Compute posterior factor for amplitude consistency. */
     #pragma omp parallel for
@@ -343,11 +362,20 @@ int bayestar_sky_map_tdoa_snr(
         /* Evaluate integral on a regular lattice in psi and cos(i) and using
          * adaptive quadrature over log(distance). */
         {
+            int j;
+            double accum;
+
             /* Prepare workspace for adaptive integrator. */
             gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(subdivision_limit);
 
-            int j;
-            double accum;
+            /* If the workspace could not be allocated, then record the GSL
+             * error value for later reporting when we leave the parallel
+             * section. Then, skip to the next loop iteration. */
+            if (!workspace)
+            {
+                gsl_errnos[i] = GSL_ENOMEM;
+                continue;
+            }
 
             /* Loop over cos(i). */
             for (accum = -INFINITY, j = 0; j < INTEGRAND_COUNT_NODES; j ++)
@@ -362,7 +390,7 @@ int bayestar_sky_map_tdoa_snr(
                 for (k = 0; k < INTEGRAND_COUNT_NODES; k ++)
                 {
                     /* Variables to store output from integrator. */
-                    double result, abserr;
+                    double result = NAN, abserr = NAN;
 
                     /* Coefficients in integrand that are determined by antenna factors, SNR, cos(i), and psi. */
                     const double num = args1 + u4_2u2_1[j] * (c3 * cosines[k] + c4 * sines[k]);
@@ -399,8 +427,20 @@ int bayestar_sky_map_tdoa_snr(
                     /* Always end with upper limit of integration. */
                     breakpoints[num_breakpoints++] = log(x2);
 
-                    /* Perform adaptive integration. Stop when a relative accuracy of 0.01 has been reached. */
-                    gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
+                    {
+                        /* Perform adaptive integration. Stop when a relative
+                         * accuracy of 0.01 has been reached. */
+                        int ret = gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.01, subdivision_limit, workspace, &result, &abserr);
+
+                        /* If the integrator failed, then record the GSL error
+                         * value for later reporting when we leave the parallel
+                         * section. Then, break out of the inner loop. */
+                        if (ret != GSL_SUCCESS)
+                        {
+                            gsl_errnos[i] = ret;
+                            break;
+                        }
+                    }
 
                     /* Accumulate the (log) posterior for this cos(i) and psi. */
                     {
@@ -419,6 +459,25 @@ int bayestar_sky_map_tdoa_snr(
             P[ipix] = log(P[ipix]) + accum;
         }
     }
+
+    /* Restore old error handler. */
+    gsl_set_error_handler(old_handler);
+
+    /* Check if there was an error in any thread evaluating any pixel. If there
+     * was, raise the error and return. */
+    for (i = 0; i < maxpix; i ++)
+    {
+        int gsl_errno = gsl_errnos[i];
+        if (gsl_errno != GSL_SUCCESS)
+        {
+            free(gsl_errnos);
+            gsl_permutation_free(pix_perm);
+            GSL_ERROR(gsl_strerror(gsl_errno), gsl_errno);
+        }
+    }
+
+    /* Discard array of GSL error values. */
+    free(gsl_errnos);
 
     /* Finish up by zeroing pixels that didn't meet the TDOA cut. */
     for (i = maxpix; i < npix; i ++)
@@ -452,8 +511,6 @@ int bayestar_sky_map_tdoa_snr(
     }
 
     /* Done !*/
-    ret = 0;
-fail:
     gsl_permutation_free(pix_perm);
-    return ret;
+    return GSL_SUCCESS;
 }

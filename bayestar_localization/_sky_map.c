@@ -18,7 +18,28 @@
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <chealpix.h>
+#include <gsl/gsl_errno.h>
 #include "bayestar_sky_map.h"
+
+
+static void
+my_gsl_error (const char * reason, const char * file, int line, int gsl_errno)
+{
+    PyObject *exception_type;
+    switch (gsl_errno)
+    {
+        case GSL_EINVAL:
+            exception_type = PyExc_ValueError;
+            break;
+        case GSL_ENOMEM:
+            exception_type = PyExc_MemoryError;
+            break;
+        default:
+            exception_type = PyExc_RuntimeError;
+            break;
+    }
+    PyErr_Format(exception_type, "%s:%d: %s\n", file, line, reason);
+}
 
 
 static PyObject *AsArrayObj(PyObject *obj, int typenum, int depth)
@@ -50,6 +71,7 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
     PyObject *out = NULL, *ret = NULL;
     double *P;
     int result;
+    gsl_error_handler_t *old_handler;
 
     /* Names of arguments */
     static char *keywords[] = {"nside", "gmst", "toas",
@@ -123,12 +145,11 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
         locations[i] = PyArray_DATA(locations_npy[i]);
     }
 
+    old_handler = gsl_set_error_handler(my_gsl_error);
     result = bayestar_sky_map_tdoa(npix, P, gmst, nifos, locations, toas, toa_variances);
-    if (ret != 0)
-    {
-        PyErr_SetFromErrno(PyExc_RuntimeError);
+    gsl_set_error_handler(old_handler);
+    if (result != GSL_SUCCESS)
         goto fail;
-    }
 
     ret = out;
     out = NULL;
@@ -171,6 +192,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     PyObject *out = NULL, *ret = NULL;
     double *P;
     int result;
+    gsl_error_handler_t *old_handler;
 
     /* Names of arguments */
     static char *keywords[] = {"nside", "gmst", "toas", "snrs",
@@ -299,12 +321,11 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     }
     horizons = PyArray_DATA(horizons_npy);
 
+    old_handler = gsl_set_error_handler(my_gsl_error);
     result = bayestar_sky_map_tdoa_snr(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons, min_distance, max_distance);
-    if (ret != 0)
-    {
-        PyErr_SetFromErrno(PyExc_RuntimeError);
+    gsl_set_error_handler(old_handler);
+    if (result != GSL_SUCCESS)
         goto fail;
-    }
 
     ret = out;
     out = NULL;
