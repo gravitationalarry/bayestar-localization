@@ -31,6 +31,7 @@
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_sf_bessel.h>
 #include <gsl/gsl_sort_vector_double.h>
+#include <gsl/gsl_statistics_double.h>
 #include <gsl/gsl_vector.h>
 
 
@@ -39,56 +40,6 @@
 static double dotprod(const double vec1[3], const double vec2[3])
 {
 	return vec1[0] * vec2[0] + vec1[1] * vec2[1] + vec1[2] * vec2[2];
-}
-
-/* Copied from lal's TimeDelay.c, but takes gmst as an argument instead of GPS time. */
-static double
-_XLALArrivalTimeDiff(
-	const double detector1_earthfixed_xyz_metres[3],
-	const double detector2_earthfixed_xyz_metres[3],
-	const double source_right_ascension_radians,
-	const double source_declination_radians,
-	const double gmst
-)
-{
-	double delta_xyz[3];
-	double ehat_src[3];
-	const double greenwich_hour_angle = gmst - source_right_ascension_radians;
-
-	if(XLAL_IS_REAL8_FAIL_NAN(greenwich_hour_angle))
-		XLAL_ERROR_REAL8(XLAL_EFUNC);
-
-	/*
-	 * compute the unit vector pointing from the geocenter to the
-	 * source
-	 */
-
-	ehat_src[0] = cos(source_declination_radians) * cos(greenwich_hour_angle);
-	ehat_src[1] = cos(source_declination_radians) * -sin(greenwich_hour_angle);
-	ehat_src[2] = sin(source_declination_radians);
-
-	/*
-	 * position of detector 2 with respect to detector 1
-	 */
-
-	delta_xyz[0] = detector2_earthfixed_xyz_metres[0] - detector1_earthfixed_xyz_metres[0];
-	delta_xyz[1] = detector2_earthfixed_xyz_metres[1] - detector1_earthfixed_xyz_metres[1];
-	delta_xyz[2] = detector2_earthfixed_xyz_metres[2] - detector1_earthfixed_xyz_metres[2];
-
-	/*
-	 * Arrival time at detector 1 - arrival time at detector 2.  This
-	 * is positive when the wavefront arrives at detector 1 after
-	 * detector 2 (and so t at detector 1 is greater than t at detector
-	 * 2).
-	 */
-
-	return dotprod(ehat_src, delta_xyz) / LAL_C_SI;
-}
-
-
-static double square(double a)
-{
-    return a * a;
 }
 
 
@@ -102,7 +53,7 @@ static int bayestar_sky_map_tdoa_not_normalized(
     const double *toas, /* Input: array of times of arrival. */
     const double *s2_toas /* Input: uncertainties in times of arrival. */
 ) {
-    double tdoas[nifos - 1], w_tdoas[nifos - 1];
+    double t[nifos], w[nifos];
     long nside;
     long i;
 
@@ -111,36 +62,33 @@ static int bayestar_sky_map_tdoa_not_normalized(
     if (nside < 0)
         GSL_ERROR("output is not a valid HEALPix array", GSL_EINVAL);
 
-    /* Compute time delays on arrival (TDOAS) relative to detector 0,
-     * and weights for their measurement uncertainties. */
-    for (i = 1; i < nifos; i ++)
-    {
-        tdoas[i - 1] = toas[i] - toas[0];
-        w_tdoas[i - 1] = 1 / (s2_toas[i] + s2_toas[0]);
-    }
+    for (i = 0; i < nifos; i ++)
+        w[i] = 1 / s2_toas[i];
+    for (i = 0; i < nifos; i ++)
+        t[i] = toas[i] - toas[0];
 
     /* Loop over pixels. */
     for (i = 0; i < npix; i ++)
     {
-        long j;
-        double theta, phi, accum;
+        int j;
 
-        /* Determine spherical polar coordinates of this pixel. */
+        /* Determine polar coordinates of this pixel. */
+        double theta, phi;
         pix2ang_ring(nside, i, &theta, &phi);
 
-        /* Loop over detector pairs. */
-        for (accum = 0, j = 1; j < nifos; j ++)
-        {
-            /* Compute expected TDOA for this sky location and detector pair. */
-            const double expected_tdoa = _XLALArrivalTimeDiff(locs[j], locs[0],
-                phi, M_PI_2 - theta, gmst);
+        /* Convert from equatorial to geographic coordinates. */
+        phi -= gmst;
 
-            /* Accumulate the measurement error. */
-            accum += square(tdoas[j - 1] - expected_tdoa) * w_tdoas[j - 1];
-        }
+        /* Convert to Cartesian coordinates. */
+        const double n[] = {sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)};
 
-        /* Evaluate the (un-normalized) Gaussian PDF for the total measurement error. */
-        P[i] = exp(-0.5 * accum);
+        /* Loop over detectors. */
+        double dt[nifos];
+        for (j = 0; j < nifos; j ++)
+            dt[j] = t[j] + dotprod(n, locs[j]) / LAL_C_SI;
+
+        /* Evaluate the (un-normalized) Gaussian likelihood. */
+        P[i] = exp(-0.5 * gsl_stats_wtss(w, 1, dt, 1, nifos));
     }
 
     /* Done! */
