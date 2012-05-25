@@ -16,7 +16,30 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 """
-Script for Monte Carlo sky localization study.
+Produce GW sky maps for all injections with associated found coincidences in
+a LIGO-LW XML file.
+
+A string naming the kind of prior -- "uniform in log distance" or
+"uniform in volume" -- is a required command line argument as well as the
+minimum and maximum distance. The filename of the (optionally gzip-compressed)
+LIGO-LW XML input is an optional argument; if omitted, input is read from stdin.
+
+Output consists of two text files, "toa.out" and "toa_snr.out", which contain
+statistics about the TOA-only sky maps and the TOA-and-SNR sky maps
+respectively. The columns are:
+
+  "elapsed_time": elapsed run time,
+  "searched_area": searched area in square degrees,
+  "searched_prob": searched probability, and
+  "offset": angle from maximum a posteriori sky location to true sky location.
+
+Also, a FITS file is created for each sky map, having a filename of the form
+
+  "sim_inspiral:simulation_id:X.toa.fits.gz" or
+  "sim_inspiral:simulation_id:X.toa_snr.fits.gz"
+
+where X is the LIGO-LW row id of the injection and "toa" or "toa_snr" identifies
+whether the sky map accounts for TOA only or both TOA and SNR.
 """
 __author__ = "Leo Singer <leo.singer@ligo.org>"
 
@@ -24,16 +47,25 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 # Command line interface.
 prior_choices = ("uniform in log distance", "uniform in volume")
 from optparse import Option, OptionParser
+from bayestar_localization import command
+
 opts, args = OptionParser(
+    formatter = command.NewlinePreservingHelpFormatter(),
+    description = __doc__,
+    usage = '%prog [options] --min-distance Mpc --max-distance Mpc --prior "uniform in log distance"|"uniform in volume" [INPUT.xml[.gz]]',
     option_list = [
         Option("--nside", "-n", type=int, default=128,
             help="HEALPix lateral resolution (default=128)"),
-        Option("--min-distance", type=float,
-            help="Minimum distance of prior in kpc"),
-        Option("--max-distance", type=float,
-            help="Maximum distance prior in kpc"),
+        Option("--f-low", type=float, default=10, metavar="Hz",
+            help="Low frequency cutoff (default=10)"),
+        Option("--min-distance", type=float, metavar="Mpc",
+            help="Minimum distance of prior in megaparsecs (required)"),
+        Option("--max-distance", type=float, metavar="Mpc",
+            help="Maximum distance prior in megaparsecs (required)"),
         Option("--prior", choices=prior_choices, metavar="|".join(prior_choices),
-            help="Distance prior")
+            help="Distance prior (required)"),
+        Option("--reference-frequency", type=float, metavar="Hz",
+            help="Shift trigger times from coalescence time to time when GW inspiral has this frequency")
     ]
 ).parse_args()
 
@@ -49,7 +81,6 @@ if opts.prior is None:
 
 # Python standard library imports.
 import os
-import time
 
 # LIGO-LW XML imports.
 from pylal import llwapp as ligolw_app
@@ -59,24 +90,16 @@ from pylal import ligolw_thinca
 from glue.ligolw import utils as ligolw_utils
 from glue.ligolw import lsctables
 
-# glue, LAL and pylal imports.
-from pylal.xlal import inject
-from pylal import date
-import swiglal
-import swiglalsimulation
-
 # BAYESTAR imports.
 from bayestar import io
-import bayestar_localization
-from bayestar_localization import misc
+from bayestar_localization.ligolw_sky_map import ligolw_sky_map
 
 # Other imports.
 import healpy as hp
 import numpy as np
 
 # Read injection file.
-xmldoc = ligolw_utils.load_filename(infilename,
-    gz=(os.path.splitext(infilename) == '.gz'))
+xmldoc = ligolw_utils.load_filename(infilename)
 
 def find_injection(sky_map, true_ra, true_dec):
     """
@@ -156,9 +179,6 @@ def events_for_coinc_event_id(coinc_event_id):
                 if getattr(row, column_name) == coinc_map.event_id:
                     yield coinc_map.event_id, row
 
-def complex_from_polar(r, phi):
-    return r * (np.cos(phi) + np.sin(phi) * 1j)
-
 # Loop over all coinc_event <-> sim_inspiral coincs.
 for sim_coinc in coinc_table:
 
@@ -185,57 +205,16 @@ for sim_coinc in coinc_table:
         for event_id, event in events_for_coinc_event_id(coinc.coinc_event_id))
     ifos = [sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals]
 
-    # Unpack some values from the rows in the tables.
-    m1 = sngl_inspirals[0].mass1
-    m2 = sngl_inspirals[0].mass2
-    f_low = sim_inspiral.f_lower # FIXME: better to get this elsewhere, but it's not stored in the sngl_inspiral table.
-    f_high = 4400 / (m1 + m2)
     ra = sim_inspiral.longitude
     dec = sim_inspiral.latitude
-    mchirp = misc.mchirp(m1, m2)
-
-    # Extract SNRs and TOAs from sngl_inspiral rows.
-    snrs = np.asarray([complex_from_polar(sngl_inspiral.snr, sngl_inspiral.coa_phase)
-        for sngl_inspiral in sngl_inspirals])
-    toas_ns = np.asarray([sngl_inspiral.get_end().ns()
-        for sngl_inspiral in sngl_inspirals])
-    mean_toa_ns = sum(toas_ns) // len(toas_ns)
-    toas = 1e-9 * (toas_ns - mean_toa_ns)
-    epoch = date.XLALINT8NSToGPS(mean_toa_ns)
-    gmst = date.XLALGreenwichMeanSiderealTime(epoch)
-
-    # Get SNR=1 horizon distances for each detector.
-    horizons = np.asarray([
-        misc.get_horizon_distance(ifo, mchirp, f_low, f_high)
-        for ifo in ifos])
-
-    # Get effective bandwidths for each detector.
-    bandwidths = np.asarray([
-        misc.get_effective_bandwidth(ifo, f_low, f_high)
-        for ifo in ifos])
-
-    # Estimate TOA uncertainty (squared) using CRLB evaluated at MEASURED
-    # values of the SNRs.
-    s2_toas = misc.toa_uncertainty(snrs, bandwidths) ** 2
-
-    # Look up physical parameters for detector.
-    detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(str(ifo))
-        for ifo in ifos]
-    responses = [det.response for det in detectors]
-    locations = [det.location for det in detectors]
-
 
     #
     # TOA-only sky localization
     #
 
     # Time and run sky localization.
-    start_time = time.time()
-    sky_map = bayestar_localization.sky_map_tdoa(opts.nside, gmst, toas, s2_toas, locations)
-    end_time = time.time()
-
-    # Compute elapsed time.
-    elapsed_time = end_time - start_time
+    sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals,
+        opts.f_low, reference_frequency=opts.reference_frequency, method="toa")
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
@@ -252,12 +231,9 @@ for sim_coinc in coinc_table:
     #
 
     # Time and run sky localization.
-    start_time = time.time()
-    sky_map = bayestar_localization.sky_map_tdoa_snr(opts.nside, gmst, toas, snrs, s2_toas, responses, locations, horizons, opts.min_distance * 1e-3, opts.max_distance * 1e-3, opts.prior)
-    end_time = time.time()
-
-    # Compute elapsed time.
-    elapsed_time = end_time - start_time
+    sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals,
+        opts.f_low, opts.min_distance, opts.max_distance, opts.prior,
+        reference_frequency=opts.reference_frequency, method="toa_snr")
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
