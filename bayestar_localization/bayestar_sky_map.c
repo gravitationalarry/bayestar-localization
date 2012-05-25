@@ -429,13 +429,15 @@ int bayestar_sky_map_tdoa_snr(
                             gsl_errnos[i] = ret;
                             break;
                         }
+
+                        /* Take the logarithm and put the log-normalization back in. */
+                        result = log(result) + integrand_params.log_offset;
                     }
 
-                    /* Accumulate the (log) posterior for this cos(i) and psi. */
-                    {
-                        double max_log_p;
-                        result = log(result) + integrand_params.log_offset;
-                        max_log_p = fmax(result, accum);
+                    /* If the radial integral was nonzero ,then accumulate the
+                     * log posterior for this cos(i) and psi. */
+                    if (result > -INFINITY) {
+                        const double max_log_p = fmax(result, accum);
                         accum = log(exp(result - max_log_p) + exp(accum - max_log_p)) + max_log_p;
                     }
                 }
