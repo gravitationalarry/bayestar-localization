@@ -309,9 +309,9 @@ int bayestar_sky_map_tdoa_snr(
     {
         double accum, Ptotal;
         for (Ptotal = 0, i = 0; i < npix; i ++)
-            Ptotal += P[gsl_permutation_get(pix_perm, i)];
+            Ptotal += exp(P[gsl_permutation_get(pix_perm, i)]);
         for (accum = 0, maxpix = 0; maxpix < npix && accum <= 0.9999 * Ptotal; maxpix ++)
-            accum += P[gsl_permutation_get(pix_perm, maxpix)];
+            accum += exp(P[gsl_permutation_get(pix_perm, maxpix)]);
     }
 
     /* Zero pixels that didn't meet the TDOA cut. */
