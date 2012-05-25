@@ -43,8 +43,49 @@ static double dotprod(const double vec1[3], const double vec2[3])
 }
 
 
-/* Perform sky localization based on TDOAs alone. Not normalized. */
-static int bayestar_sky_map_tdoa_not_normalized(
+/* Exponentiate and normalize a log probability sky map. */
+static int exp_normalize(long npix, double *P)
+{
+    long i;
+    double accum, max_log_p;
+
+    /* Sort pixel indices from greatest log probability. */
+    gsl_permutation *pix_perm = gsl_permutation_alloc(npix);
+    if (!pix_perm)
+        GSL_ERROR("failed to allocate space for permutation data", GSL_ENOMEM);
+    gsl_vector_view P_vector = gsl_vector_view_array(P, npix);
+    gsl_sort_vector_index(pix_perm, &P_vector.vector);
+    gsl_permutation_reverse(pix_perm);
+
+    /* Find the value of the greatest log probability. */
+    max_log_p = P[gsl_permutation_get(pix_perm, 0)];
+
+    /* Subtract it off. */
+    for (i = 0; i < npix; i ++)
+        P[i] -= max_log_p;
+
+    /* Exponentiate to convert from log probability to probability. */
+    for (i = 0; i < npix; i ++)
+        P[i] = exp(P[i]);
+
+    /* Sum entire sky map to find normalization. */
+    for (accum = 0, i = 0; i < npix; i ++)
+        accum += P[gsl_permutation_get(pix_perm, i)];
+
+    /* Normalize. */
+    for (i = 0; i < npix; i ++)
+        P[i] /= accum;
+
+    /* Free permutation. */
+    gsl_permutation_free(pix_perm);
+
+    /* Done! */
+    return GSL_SUCCESS;
+}
+
+
+/* Perform sky localization based on TDOAs alone. Returns log probability; not normalized. */
+static int bayestar_sky_map_tdoa_not_normalized_log(
     long npix, /* Input: number of HEALPix pixels. */
     double *P, /* Output: pre-allocated array of length npix to store posterior map. */
     double gmst, /* Greenwich mean sidereal time in radians. */
@@ -87,8 +128,8 @@ static int bayestar_sky_map_tdoa_not_normalized(
         for (j = 0; j < nifos; j ++)
             dt[j] = t[j] + dotprod(n, locs[j]) / LAL_C_SI;
 
-        /* Evaluate the (un-normalized) Gaussian likelihood. */
-        P[i] = exp(-0.5 * gsl_stats_wtss(w, 1, dt, 1, nifos));
+        /* Evaluate the (un-normalized) Gaussian log likelihood. */
+        P[i] = -0.5 * gsl_stats_wtss(w, 1, dt, 1, nifos);
     }
 
     /* Done! */
@@ -106,25 +147,9 @@ int bayestar_sky_map_tdoa(
     const double *toas, /* Input: array of times of arrival. */
     const double *s2_toas /* Input: uncertainties in times of arrival. */
 ) {
-    int ret = bayestar_sky_map_tdoa_not_normalized(npix, P, gmst, nifos, locs, toas, s2_toas);
+    int ret = bayestar_sky_map_tdoa_not_normalized_log(npix, P, gmst, nifos, locs, toas, s2_toas);
     if (ret == GSL_SUCCESS)
-    {
-        /* Sort pixel indices by ascending significance. */
-        double accum;
-        long i;
-        gsl_vector_view P_vector = gsl_vector_view_array(P, npix);
-        gsl_permutation *pix_perm = gsl_permutation_alloc(npix);
-        if (!pix_perm)
-            GSL_ERROR("failed to allocate space for permutation data", GSL_ENOMEM);
-        gsl_sort_vector_index(pix_perm, &P_vector.vector);
-        gsl_permutation_reverse(pix_perm);
-
-        for (accum = 0, i = 0; i < npix; i ++)
-            accum += P[gsl_permutation_get(pix_perm, i)];
-        for (i = 0; i < npix; i ++)
-            P[i] /= accum;
-        gsl_permutation_free(pix_perm);
-    }
+        ret = exp_normalize(npix, P);
     return ret;
 }
 
@@ -259,7 +284,7 @@ int bayestar_sky_map_tdoa_snr(
 
     /* Evaluate posterior term only first. */
     {
-        int ret = bayestar_sky_map_tdoa_not_normalized(npix, P, gmst, nifos, locations, toas, s2_toas);
+        int ret = bayestar_sky_map_tdoa_not_normalized_log(npix, P, gmst, nifos, locations, toas, s2_toas);
         if (ret != GSL_SUCCESS)
             return ret;
     }
@@ -287,6 +312,13 @@ int bayestar_sky_map_tdoa_snr(
             Ptotal += P[gsl_permutation_get(pix_perm, i)];
         for (accum = 0, maxpix = 0; maxpix < npix && accum <= 0.9999 * Ptotal; maxpix ++)
             accum += P[gsl_permutation_get(pix_perm, maxpix)];
+    }
+
+    /* Zero pixels that didn't meet the TDOA cut. */
+    for (i = maxpix; i < npix; i ++)
+    {
+        long ipix = gsl_permutation_get(pix_perm, i);
+        P[ipix] = -INFINITY;
     }
 
     /* Allocate space to store per-pixel, per-thread error value. */
@@ -447,12 +479,15 @@ int bayestar_sky_map_tdoa_snr(
             gsl_integration_workspace_free(workspace);
 
             /* Accumulate (log) posterior terms for SNR and TDOA. */
-            P[ipix] = log(P[ipix]) + accum;
+            P[ipix] += accum;
         }
     }
 
     /* Restore old error handler. */
     gsl_set_error_handler(old_handler);
+
+    /* Free permutation. */
+    gsl_permutation_free(pix_perm);
 
     /* Check if there was an error in any thread evaluating any pixel. If there
      * was, raise the error and return. */
@@ -462,7 +497,6 @@ int bayestar_sky_map_tdoa_snr(
         if (gsl_errno != GSL_SUCCESS)
         {
             free(gsl_errnos);
-            gsl_permutation_free(pix_perm);
             GSL_ERROR(gsl_strerror(gsl_errno), gsl_errno);
         }
     }
@@ -470,38 +504,6 @@ int bayestar_sky_map_tdoa_snr(
     /* Discard array of GSL error values. */
     free(gsl_errnos);
 
-    /* Finish up by zeroing pixels that didn't meet the TDOA cut. */
-    for (i = maxpix; i < npix; i ++)
-    {
-        long ipix = gsl_permutation_get(pix_perm, i);
-        P[ipix] = -INFINITY;
-    }
-
-    /* Normalize posterior. */
-    {
-        /* Find maximum of log posterior. */
-        double accum;
-        for (accum = P[0], i = 1; i < npix; i ++)
-        {
-            double new_log_p = P[i];
-            if (new_log_p > accum)
-                accum = new_log_p;
-        }
-
-        /* Subtract off maximum of log posterior, and then exponentiate to get the posterior itself. */
-        for (i = 0; i < npix; i ++)
-            P[i] = exp(P[i] - accum);
-
-        /* Sum posterior to get normalization. */
-        for (accum = 0, i = 0; i < npix; i ++)
-            accum += P[gsl_permutation_get(pix_perm, i)];
-
-        /* Normalize posterior. */
-        for (i = 0; i < npix; i ++)
-            P[i] /= accum;
-    }
-
-    /* Done !*/
-    gsl_permutation_free(pix_perm);
-    return GSL_SUCCESS;
+    /* Exponentiate and normalize posterior. */
+    return exp_normalize(npix, P);
 }
