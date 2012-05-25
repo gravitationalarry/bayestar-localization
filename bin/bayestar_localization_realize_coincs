@@ -98,8 +98,7 @@ summary = ligolw_app.append_search_summary(out_xmldoc, process, inseg=all_time,
     outseg=all_time)
 
 # Read injection file.
-xmldoc = ligolw_utils.load_filename(infilename,
-    gz=(os.path.splitext(infilename) == '.gz'))
+xmldoc = ligolw_utils.load_filename(infilename)
 
 # Extract simulation table from injection file.
 sim_inspiral_table = ligolw_table.get_table(xmldoc,
