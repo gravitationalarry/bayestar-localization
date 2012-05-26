@@ -58,7 +58,7 @@ def ligolw_sky_map(nside, sngl_inspirals, f_low, min_distance=None, max_distance
 
     # Optionally apply reference frequency shift.
     if reference_frequency is not None:
-        toas -= [int(round(1e9 * swiglalsimulation.
+        toas_ns -= [int(round(1e9 * swiglalsimulation.
             XLALSimInspiralTaylorF2ReducedSpinChirpTime(
             reference_frequency,
             m1 * swiglal.LAL_MSUN_SI,
