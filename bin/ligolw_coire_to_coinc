@@ -1,0 +1,156 @@
+#!/usr/bin/env python
+#
+# Copyright (C) 2012  Leo Singer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.	If not, see <http://www.gnu.org/licenses/>.
+#
+from __future__ import division
+"""
+Convert coire-style files to coinc-style files.
+"""
+__author__ = "Leo Singer <leo.singer@ligo.org>"
+
+
+# Command line interface.
+from optparse import Option, OptionParser
+parser = OptionParser(description=__doc__,
+	usage="%prog [options] [INPUT.xml[.gz]]",
+	option_list = [
+		Option("-o", "--output", metavar="OUTPUT.xml[.gz]", default="/dev/stdout",
+			help="Name of output file (default=stdout)")
+	]
+)
+opts, args = parser.parse_args()
+
+# Determine if input will come from a named file or from stdin.
+if len(args) == 0:
+	infilename = '/dev/stdin'
+elif len(args) == 1:
+	infilename = args[0]
+else:
+	raise ValueError("Too many command line arguments.")
+
+
+# Python standard library imports.
+import os
+from itertools import izip, groupby
+from operator import attrgetter
+
+# LIGO-LW XML imports.
+from glue.ligolw import ligolw
+from pylal import llwapp as ligolw_app
+from pylal import ligolw_inspinjfind
+from glue.ligolw.utils import process as ligolw_process
+from glue.ligolw import table as ligolw_table
+from pylal import ligolw_thinca
+from glue.ligolw import utils as ligolw_utils
+from glue.ligolw import lsctables
+
+# glue, LAL and pylal imports.
+from pylal.xlal import inject
+from glue import segments
+from glue import lal
+
+
+# Read input file.
+xmldoc = ligolw_utils.load_filename(infilename)
+
+# Write process metadata to output file.
+process = ligolw_process.register_to_xmldoc(xmldoc, parser.get_prog_name(),
+	opts.__dict__, ifos=[], comment="Converted from coire file")
+
+def get_or_create_table(xmldoc, table_class):
+	tables = ligolw_table.getTablesByName(xmldoc, table_class.tableName)
+	if len(tables) == 0:
+		table = lsctables.New(table_class)
+		xmldoc.childNodes[0].appendChild(table)
+	elif len(tables) == 1:
+		table = tables[0]
+	else:
+		raise ValueError("Document has more than one table of that type")
+	return table
+
+# Locate or create tables.
+sngl_inspiral_table = ligolw_table.get_table(xmldoc, lsctables.SnglInspiralTable.tableName)
+sim_inspiral_table = ligolw_table.get_table(xmldoc, lsctables.SimInspiralTable.tableName)
+coinc_table = get_or_create_table(xmldoc, lsctables.CoincTable)
+coinc_map_table = get_or_create_table(xmldoc, lsctables.CoincMapTable)
+coinc_def_table = get_or_create_table(xmldoc, lsctables.CoincDefTable)
+coinc_def = ligolw_thinca.InspiralCoincDef
+sngl_sngl_coinc_def_id = coinc_def_table.get_next_id()
+coinc_def.coinc_def_id = sngl_sngl_coinc_def_id
+coinc_def_table.append(coinc_def)
+coinc_def = ligolw_inspinjfind.InspiralSCExactCoincDef
+sngl_coinc_coinc_def_id = coinc_def_table.get_next_id()
+coinc_def.coinc_def_id = sngl_coinc_coinc_def_id
+coinc_def_table.append(coinc_def)
+
+# Reset next ID for SnglInspiral table.
+sngl_inspiral_table.set_next_id(lsctables.SnglInspiralID(0))
+
+time_slide_id = lsctables.TimeSlideID(0)
+
+key = attrgetter("event_id")
+for (_, sngl_inspirals), sim_inspiral in izip(groupby(sorted(sngl_inspiral_table, key=key), key), sim_inspiral_table):
+	sngl_inspirals = list(sngl_inspirals)
+	ifos = set(sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals)
+
+	coinc = lsctables.Coinc()
+	coinc.coinc_event_id = coinc_table.get_next_id()
+	coinc.process_id = process.process_id
+	coinc.coinc_def_id = sngl_sngl_coinc_def_id
+	coinc.time_slide_id = time_slide_id
+	coinc.set_instruments(ifos)
+	coinc.nevents = len(sngl_inspirals)
+	coinc.likelihood = None
+	coinc_table.append(coinc)
+
+	for sngl_inspiral in sngl_inspirals:
+		sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
+		coinc_map = lsctables.CoincMap()
+		coinc_map.coinc_event_id = coinc.coinc_event_id
+		coinc_map.table_name = sngl_inspiral_table.tableName
+		coinc_map.event_id = sngl_inspiral.event_id
+		coinc_map_table.append(coinc_map)
+
+	sngls_coinc_event_id = coinc.coinc_event_id
+
+	coinc = lsctables.Coinc()
+	coinc.coinc_event_id = coinc_table.get_next_id()
+	coinc.process_id = process.process_id
+	coinc.coinc_def_id = sngl_coinc_coinc_def_id
+	coinc.time_slide_id = time_slide_id
+	coinc.set_instruments(ifos)
+	coinc.nevents = 2
+	coinc.likelihood = None
+	coinc_table.append(coinc)
+
+	coinc_map = lsctables.CoincMap()
+	coinc_map.coinc_event_id = coinc.coinc_event_id
+	coinc_map.table_name = coinc_table.tableName
+	coinc_map.event_id = sngls_coinc_event_id
+	coinc_map_table.append(coinc_map)
+
+	coinc_map = lsctables.CoincMap()
+	coinc_map.coinc_event_id = coinc.coinc_event_id
+	coinc_map.table_name = sim_inspiral_table.tableName
+	coinc_map.event_id = sim_inspiral.simulation_id
+	coinc_map_table.append(coinc_map)
+
+# Record process end time.
+ligolw_process.set_process_end_time(process)
+
+# Write output file.
+ligolw_utils.write_filename(xmldoc, opts.output,
+	gz=(os.path.splitext(opts.output)==".gz"))
