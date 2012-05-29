@@ -102,7 +102,7 @@ sngl_inspiral_table.set_next_id(lsctables.SnglInspiralID(0))
 time_slide_id = lsctables.TimeSlideID(0)
 
 key = attrgetter("event_id")
-for (_, sngl_inspirals), sim_inspiral in izip(groupby(sorted(sngl_inspiral_table, key=key), key), sim_inspiral_table):
+for (_, sngl_inspirals), sim_inspiral in izip(groupby(sngl_inspiral_table, key), sim_inspiral_table):
 	sngl_inspirals = list(sngl_inspirals)
 	ifos = set(sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals)
 
