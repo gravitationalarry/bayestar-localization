@@ -103,8 +103,14 @@ static int bayestar_sky_map_tdoa_not_normalized_log(
     if (nside < 0)
         GSL_ERROR("output is not a valid HEALPix array", GSL_EINVAL);
 
+    /* Take reciprocal of measurement variances to get sum-of-squares weights. */
     for (i = 0; i < nifos; i ++)
         w[i] = 1 / s2_toas[i];
+
+    /* Subtract off zeroth TOA so that when we compare these with the expected
+     * time delays we are subtracting numbers of similar size (rather than
+     * subtracting gigaseconds from milliseconds). In exact arithmetic, this
+     * would not affect the final answer. */
     for (i = 0; i < nifos; i ++)
         t[i] = toas[i] - toas[0];
 
