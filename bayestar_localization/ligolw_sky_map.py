@@ -63,7 +63,7 @@ def ligolw_sky_map(nside, sngl_inspirals, f_low, min_distance=None, max_distance
             reference_frequency,
             m1 * swiglal.LAL_MSUN_SI,
             m2 * swiglal.LAL_MSUN_SI,
-            0, 7))) for m1, m2 in zip(mass1s, mass2s)]
+            0, 4))) for m1, m2 in zip(mass1s, mass2s)]
 
     # Convert TOAs from nanoseconds to seconds.
     toas = 1e-9 * toas_ns
