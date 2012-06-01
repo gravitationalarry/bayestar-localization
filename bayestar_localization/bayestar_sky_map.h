@@ -15,7 +15,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <lal/LALDatatypes.h>
+#include <complex.h>
 
 #ifndef BAYESTAR_SKY_MAP_H
 #define BAYESTAR_SKY_MAP_H
