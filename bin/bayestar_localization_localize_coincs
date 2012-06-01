@@ -203,7 +203,6 @@ for sim_coinc in coinc_table:
 
     sngl_inspirals = list(event
         for event_id, event in events_for_coinc_event_id(coinc.coinc_event_id))
-    ifos = [sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals]
 
     ra = sim_inspiral.longitude
     dec = sim_inspiral.latitude
