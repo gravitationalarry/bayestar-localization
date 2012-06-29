@@ -327,9 +327,9 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
 
     if (prior_str)
     {
-        if (strcmp(prior_str, "uniform in log distance"))
+        if (strcmp(prior_str, "uniform in log distance") == 0)
             prior = BAYESTAR_PRIOR_UNIFORM_IN_LOG_DISTANCE;
-        else if (strcmp(prior_str, "uniform in volume"))
+        else if (strcmp(prior_str, "uniform in volume") == 0)
             prior = BAYESTAR_PRIOR_UNIFORM_IN_VOLUME;
     }
 
