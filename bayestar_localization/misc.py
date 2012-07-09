@@ -81,6 +81,11 @@ def get_effective_bandwidth(ifo, f_low=10., f_high=1560.):
     return np.sqrt(np.sum(f ** (-1/3) / S) / np.sum(f ** (-7/3) / S))
 
 
+def get_f_lso(mass1, mass2):
+    """Calculate the GW frequency during the last stable orbit of a compact binary."""
+    return 1 / (6 ** 1.5 * np.pi * (mass1 + mass2) * swiglal.LAL_MTSUN_SI)
+
+
 def toa_uncertainty(snr, bandwidth):
     """Estimate uncertainty in TOA measurements using Cramer-Rao bound."""
     return 1 / (2 * np.pi * abs(snr) * bandwidth)
