@@ -76,6 +76,7 @@ setup(
         'bin/bayestar_localization_cluster_coincs',
         'bin/bayestar_localization_realize_coincs',
         'bin/bayestar_localization_localize_coincs',
+        'bin/bayestar_localization_sim_to_tmpltbank',
         'bin/ligolw_coire_to_coinc'
     ]
 )
