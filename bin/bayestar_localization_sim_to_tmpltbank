@@ -30,8 +30,9 @@ from bayestar_localization import command
 parser = OptionParser(
     formatter = command.NewlinePreservingHelpFormatter(),
     description = __doc__,
-    usage="%prog [INPUT.xml[.gz]] [-o OUTPUT.xml[.gz]]",
+    usage="%prog [options] [INPUT.xml[.gz]] [-o OUTPUT.xml[.gz]]",
     option_list = [
+	Option("--approximant"),
         Option("-o", "--output", metavar="OUTPUT.xml[.gz]", default="/dev/stdout",
             help="Name of output file (default=stdout)")
     ]
@@ -75,7 +76,7 @@ out_xmldoc = ligolw.Document()
 out_xmldoc.appendChild(ligolw.LIGO_LW())
 
 # Write process metadata to output file.
-process = ligolw_process.register_to_xmldoc(out_xmldoc, parser.get_prog_name(),
+process = ligolw_process.register_to_xmldoc(out_xmldoc, "tmpltbank",
     opts.__dict__, ifos="H1", comment="Exact-match template bank")
 
 # Read injection file.
@@ -101,6 +102,7 @@ sngl_inspiral.mass1 = sim_inspiral.mass1
 sngl_inspiral.mass2 = sim_inspiral.mass2
 sngl_inspiral.mtotal = sngl_inspiral.mass1 + sngl_inspiral.mass2
 sngl_inspiral.mchirp = sim_inspiral.mchirp
+sngl_inspiral.chi = 0
 sngl_inspiral.eta = sim_inspiral.eta
 sngl_inspiral.ifo = "H1"
 sngl_inspiral.f_final = misc.get_f_lso(sngl_inspiral.mass1, sngl_inspiral.mass2)
