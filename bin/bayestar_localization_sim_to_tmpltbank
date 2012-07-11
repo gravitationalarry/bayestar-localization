@@ -102,10 +102,23 @@ sngl_inspiral.mass1 = sim_inspiral.mass1
 sngl_inspiral.mass2 = sim_inspiral.mass2
 sngl_inspiral.mtotal = sngl_inspiral.mass1 + sngl_inspiral.mass2
 sngl_inspiral.mchirp = sim_inspiral.mchirp
-sngl_inspiral.chi = 0
 sngl_inspiral.eta = sim_inspiral.eta
 sngl_inspiral.ifo = "H1"
 sngl_inspiral.f_final = misc.get_f_lso(sngl_inspiral.mass1, sngl_inspiral.mass2)
+
+# FIXME hardcoded stuff
+sngl_inspiral.chi = 0
+sngl_inspiral.gamma0 = 345565.38
+sngl_inspiral.gamma1 = -6602.5591
+sngl_inspiral.gamma2 = 10793.522
+sngl_inspiral.gamma3 = 437.95474
+sngl_inspiral.gamma4 = -517.86371
+sngl_inspiral.gamma5 = 680.82349
+sngl_inspiral.gamma6 = 0
+sngl_inspiral.gamma7 = 0
+sngl_inspiral.gamma8 = 0
+sngl_inspiral.gamma9 = 0
+
 sngl_inspiral_table.append(sngl_inspiral)
 
 # Record process end time.
