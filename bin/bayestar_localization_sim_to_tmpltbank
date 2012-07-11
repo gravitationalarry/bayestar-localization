@@ -108,16 +108,16 @@ sngl_inspiral.f_final = misc.get_f_lso(sngl_inspiral.mass1, sngl_inspiral.mass2)
 
 # FIXME hardcoded stuff
 sngl_inspiral.chi = 0
-sngl_inspiral.gamma0 = 345565.38
-sngl_inspiral.gamma1 = -6602.5591
-sngl_inspiral.gamma2 = 10793.522
-sngl_inspiral.gamma3 = 437.95474
-sngl_inspiral.gamma4 = -517.86371
-sngl_inspiral.gamma5 = 680.82349
-sngl_inspiral.gamma6 = 0
-sngl_inspiral.gamma7 = 0
-sngl_inspiral.gamma8 = 0
-sngl_inspiral.gamma9 = 0
+sngl_inspiral.Gamma0 = 345565.38
+sngl_inspiral.Gamma1 = -6602.5591
+sngl_inspiral.Gamma2 = 10793.522
+sngl_inspiral.Gamma3 = 437.95474
+sngl_inspiral.Gamma4 = -517.86371
+sngl_inspiral.Gamma5 = 680.82349
+sngl_inspiral.Gamma6 = 0
+sngl_inspiral.Gamma7 = 0
+sngl_inspiral.Gamma8 = 0
+sngl_inspiral.Gamma9 = 0
 
 sngl_inspiral_table.append(sngl_inspiral)
 
