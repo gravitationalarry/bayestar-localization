@@ -43,6 +43,20 @@ def get_noise_psd_func(ifo):
     return func
 
 
+def get_noise_moment(ifo, order, f_low=10., f_high=1560.):
+    # Integration step in Hz.
+    df = 1.
+
+    # Evaluation frequencies.
+    f = np.linspace(f_low, f_high, (f_high - f_low) / df)
+
+    # Noise PSD function.
+    S = get_noise_psd_func(ifo)
+    S = [S(ff) for ff in f]
+
+    return np.sum(f ** (order - 7/3) / S) / np.sum(f ** (-7/3) / S)
+
+
 def get_horizon_distance(ifo, mchirp=mchirp(1.4, 1.4), f_low=10., f_high=1560., snr_thresh=1):
     """Compute the distance at which a source would produce a maximum SNR of
     snr_thresh in the given interferometer."""
@@ -68,17 +82,7 @@ def get_horizon_distance(ifo, mchirp=mchirp(1.4, 1.4), f_low=10., f_high=1560., 
 
 
 def get_effective_bandwidth(ifo, f_low=10., f_high=1560.):
-    # Integration step in Hz.
-    df = 1.
-
-    # Evaluation frequencies.
-    f = np.linspace(f_low, f_high, (f_high - f_low) / df)
-
-    # Noise PSD function.
-    S = get_noise_psd_func(ifo)
-    S = [S(ff) for ff in f]
-
-    return np.sqrt(np.sum(f ** (-1/3) / S) / np.sum(f ** (-7/3) / S))
+    return np.sqrt(get_noise_moment(ifo, 2, f_low, f_high))
 
 
 def get_f_lso(mass1, mass2):
