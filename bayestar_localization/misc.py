@@ -22,7 +22,7 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 
 import numpy as np
-import swiglal, swiglalsimulation
+import lal, lalsimulation
 
 
 def mchirp(m1=1.4, m2=1.4):
@@ -33,11 +33,11 @@ def mchirp(m1=1.4, m2=1.4):
 def get_noise_psd_func(ifo):
     """Find a function that describes the given interferometer's noise PSD."""
     if ifo in ("H1", "H2", "L1", "I1"):
-        func = swiglalsimulation.XLALSimNoisePSDaLIGOZeroDetHighPower
+        func = lalsimulation.SimNoisePSDaLIGOZeroDetHighPower
     elif ifo == "V1":
-        func = swiglalsimulation.XLALSimNoisePSDAdvVirgo
+        func = lalsimulation.SimNoisePSDAdvVirgo
     elif ifo == "K1":
-        func = swiglalsimulation.XLALSimNoisePSDKAGRA
+        func = lalsimulation.SimNoisePSDKAGRA
     else:
         raise ValueError("Unknown interferometer: %s", ifo)
     return func
@@ -62,7 +62,7 @@ def get_horizon_distance(ifo, mchirp=mchirp(1.4, 1.4), f_low=10., f_high=1560., 
     snr_thresh in the given interferometer."""
 
     # Chirp mass in seconds.
-    tchirp = swiglal.LAL_MTSUN_SI * mchirp
+    tchirp = lal.LAL_MTSUN_SI * mchirp
 
     # Integration step in Hz.
     df = 1.
@@ -76,8 +76,8 @@ def get_horizon_distance(ifo, mchirp=mchirp(1.4, 1.4), f_low=10., f_high=1560., 
 
     Dhor = np.sum(f ** (-7/3) / S * df)
     Dhor = np.sqrt(5/6 * Dhor)
-    Dhor *= tchirp ** (5/6) * np.pi ** (-2/3) * swiglal.LAL_C_SI / snr_thresh
-    Dhor /= 1e6 * swiglal.LAL_PC_SI
+    Dhor *= tchirp ** (5/6) * np.pi ** (-2/3) * lal.LAL_C_SI / snr_thresh
+    Dhor /= 1e6 * lal.LAL_PC_SI
     return Dhor
 
 
@@ -87,7 +87,7 @@ def get_effective_bandwidth(ifo, f_low=10., f_high=1560.):
 
 def get_f_lso(mass1, mass2):
     """Calculate the GW frequency during the last stable orbit of a compact binary."""
-    return 1 / (6 ** 1.5 * np.pi * (mass1 + mass2) * swiglal.LAL_MTSUN_SI)
+    return 1 / (6 ** 1.5 * np.pi * (mass1 + mass2) * lal.LAL_MTSUN_SI)
 
 
 def toa_uncertainty(snr, bandwidth):
