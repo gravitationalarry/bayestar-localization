@@ -26,7 +26,7 @@ import numpy as np
 import bayestar_localization
 from bayestar_localization import misc
 from pylal import date
-import swiglal, swiglalsimulation
+import lal, lalsimulation
 
 
 def complex_from_polar(r, phi):
@@ -58,11 +58,11 @@ def ligolw_sky_map(nside, sngl_inspirals, f_low, min_distance=None, max_distance
 
     # Optionally apply reference frequency shift.
     if reference_frequency is not None:
-        toas_ns -= [int(round(1e9 * swiglalsimulation.
-            XLALSimInspiralTaylorF2ReducedSpinChirpTime(
+        toas_ns -= [int(round(1e9 * lalsimulation.
+            SimInspiralTaylorF2ReducedSpinChirpTime(
             reference_frequency,
-            m1 * swiglal.LAL_MSUN_SI,
-            m2 * swiglal.LAL_MSUN_SI,
+            m1 * lal.LAL_MSUN_SI,
+            m2 * lal.LAL_MSUN_SI,
             0, 4))) for m1, m2 in zip(mass1s, mass2s)]
 
     # Convert TOAs from nanoseconds to seconds.
@@ -88,7 +88,7 @@ def ligolw_sky_map(nside, sngl_inspirals, f_low, min_distance=None, max_distance
     s2_toas = misc.toa_uncertainty(snrs, bandwidths) ** 2
 
     # Look up physical parameters for detector.
-    detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(str(ifo))
+    detectors = [lalsimulation.InstrumentNameToLALDetector(str(ifo))
         for ifo in ifos]
     responses = [det.response for det in detectors]
     locations = [det.location for det in detectors]

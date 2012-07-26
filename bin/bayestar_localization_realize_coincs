@@ -28,9 +28,9 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 
 # Determine list of known detectors for command line arguments.
-import swiglal
+import lal
 available_ifos = sorted(det.frDetector.prefix
-    for det in swiglal.lalCachedDetectors)
+    for det in lal.lalCachedDetectors)
 
 # Command line interface.
 from optparse import Option, OptionParser
@@ -78,7 +78,7 @@ from glue.ligolw import lsctables
 from pylal.xlal import inject
 from glue import segments
 from glue import lal
-import swiglal, swiglalsimulation
+import lal, lalsimulation
 
 # BAYESTAR imports.
 from bayestar_localization import misc
@@ -136,7 +136,7 @@ coinc_table = lsctables.New(lsctables.CoincTable)
 out_xmldoc.childNodes[0].appendChild(coinc_table)
 
 # Precompute values that are common to all simulations.
-detectors = [swiglalsimulation.XLALInstrumentNameToLALDetector(ifo)
+detectors = [lalsimulation.InstrumentNameToLALDetector(ifo)
     for ifo in opts.detector]
 responses = [det.response for det in detectors]
 locations = [det.location for det in detectors]
@@ -155,7 +155,7 @@ for sim_inspiral in sim_inspiral_table:
     phi = sim_inspiral.coa_phase
     psi = sim_inspiral.polarization
     epoch = sim_inspiral.get_time_geocent()
-    gmst = swiglal.XLALGreenwichMeanSiderealTime(epoch)
+    gmst = lal.GreenwichMeanSiderealTime(epoch)
     mchirp = misc.mchirp(m1, m2)
 
     # Pre-evaluate some trigonometric functions that we will need.
@@ -186,7 +186,7 @@ for sim_inspiral in sim_inspiral_table:
         for response in responses]).T
 
     # Compute TOAs at each detector.
-    toas = np.asarray([swiglal.XLALTimeDelayFromEarthCenter(location, ra, dec,
+    toas = np.asarray([lal.TimeDelayFromEarthCenter(location, ra, dec,
         epoch) for location in locations])
 
     # Compute SNR in each detector.

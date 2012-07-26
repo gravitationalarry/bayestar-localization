@@ -62,7 +62,6 @@ from glue.ligolw import lsctables
 
 # glue, LAL and pylal imports.
 from glue import lal
-import swiglal, swiglalsimulation
 
 # BAYESTAR imports.
 from bayestar_localization import misc
