@@ -77,7 +77,7 @@ from glue.ligolw import lsctables
 # glue, LAL and pylal imports.
 from pylal.xlal import inject
 from glue import segments
-from glue import lal
+import glue.lal
 import lal, lalsimulation
 
 # BAYESTAR imports.
@@ -96,7 +96,7 @@ process = ligolw_process.register_to_xmldoc(out_xmldoc, parser.get_prog_name(),
     opts.__dict__, ifos=opts.detector, comment="Simulated coincidences")
 
 # Add search summary to output file.
-all_time = segments.segment([lal.LIGOTimeGPS(0), lal.LIGOTimeGPS(2e9)])
+all_time = segments.segment([glue.lal.LIGOTimeGPS(0), glue.lal.LIGOTimeGPS(2e9)])
 search_summary_table = lsctables.New(lsctables.SearchSummaryTable)
 out_xmldoc.childNodes[0].appendChild(search_summary_table)
 summary = ligolw_app.append_search_summary(out_xmldoc, process, inseg=all_time,
@@ -154,7 +154,7 @@ for sim_inspiral in sim_inspiral_table:
     inc = sim_inspiral.inclination
     phi = sim_inspiral.coa_phase
     psi = sim_inspiral.polarization
-    epoch = sim_inspiral.get_time_geocent()
+    epoch = lal.LIGOTimeGPS(sim_inspiral.geocent_end_time, sim_inspiral.geocent_end_time_ns)
     gmst = lal.GreenwichMeanSiderealTime(epoch)
     mchirp = misc.mchirp(m1, m2)
 
@@ -241,7 +241,8 @@ for sim_inspiral in sim_inspiral_table:
         sngl_inspiral.ifo = ifo
         sngl_inspiral.mass1 = m1
         sngl_inspiral.mass2 = m2
-        sngl_inspiral.set_end(toa + epoch)
+        sngl_inspiral.end_time = (epoch + toa).gpsSeconds
+        sngl_inspiral.end_time_ns = (epoch + toa).gpsNanoSeconds
         sngl_inspiral.snr = abs(snr)
         sngl_inspiral.coa_phase = np.angle(snr)
         sngl_inspiral.eff_distance = horizon / sngl_inspiral.snr
