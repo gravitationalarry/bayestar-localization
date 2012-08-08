@@ -156,7 +156,7 @@ for sim_inspiral in sim_inspiral_table:
     psi = sim_inspiral.polarization
     epoch = lal.LIGOTimeGPS(sim_inspiral.geocent_end_time, sim_inspiral.geocent_end_time_ns)
     gmst = lal.GreenwichMeanSiderealTime(epoch)
-    mchirp = misc.mchirp(m1, m2)
+    order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
 
     # Pre-evaluate some trigonometric functions that we will need.
     cosinc = np.cos(inc)
@@ -173,12 +173,12 @@ for sim_inspiral in sim_inspiral_table:
 
     # Get SNR=1 horizon distances for each detector.
     horizons = np.asarray([
-        misc.get_horizon_distance(ifo, mchirp, f_low, f_high)
+        misc.get_horizon_distance(ifo, m1, m2, f_low=f_low, order=order)
         for ifo in opts.detector])
 
     # Get effective bandwidths for each detector.
     bandwidths = np.asarray([
-        misc.get_effective_bandwidth(ifo, f_low, f_high)
+        misc.get_effective_bandwidth(ifo, m1, m2, f_low=f_low, order=order)
         for ifo in opts.detector])
 
     # Get antenna factors for each detector.

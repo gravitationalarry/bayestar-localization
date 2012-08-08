@@ -45,6 +45,8 @@ opts, args = OptionParser(
             help="HEALPix lateral resolution (default=128)"),
         Option("--f-low", type=float, default=10, metavar="Hz",
             help="Low frequency cutoff (default=10)"),
+        Option("--order", type=int, default=7,
+            help="Twice PN amplitude order, used for computing noise moments (default=7)"),
         Option("--min-distance", type=float, metavar="Mpc",
             help="Minimum distance of prior in megaparsecs (required)"),
         Option("--max-distance", type=float, metavar="Mpc",
@@ -101,7 +103,7 @@ sngl_inspirals = [(sngl_inspiral for sngl_inspiral in sngl_inspiral_table
     if sngl_inspiral.event_id == event_id).next() for event_id in event_ids]
 
 # TOA+SNR sky localization
-sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals, opts.f_low,
+sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals, opts.order, opts.f_low,
     opts.min_distance, opts.max_distance, opts.prior,
     reference_frequency=opts.reference_frequency)
 

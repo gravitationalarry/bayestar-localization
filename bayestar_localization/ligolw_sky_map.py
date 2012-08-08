@@ -33,7 +33,7 @@ def complex_from_polar(r, phi):
     return r * (np.cos(phi) + np.sin(phi) * 1j)
 
 
-def ligolw_sky_map(nside, sngl_inspirals, f_low, min_distance=None, max_distance=None, prior=None, method="toa_snr", reference_frequency=None):
+def ligolw_sky_map(nside, sngl_inspirals, order, f_low, min_distance=None, max_distance=None, prior=None, method="toa_snr", reference_frequency=None):
     """Convenience function to produce a sky map from LIGO-LW rows. Note that
     min_distance and max_distance should be in Mpc."""
 
@@ -45,8 +45,6 @@ def ligolw_sky_map(nside, sngl_inspirals, f_low, min_distance=None, max_distance
     # Extract masses from the table.
     mass1s = np.asarray([sngl_inspiral.mass1 for sngl_inspiral in sngl_inspirals])
     mass2s = np.asarray([sngl_inspiral.mass2 for sngl_inspiral in sngl_inspirals])
-    mchirps = misc.mchirp(mass1s, mass2s)
-    f_highs = 4400 / (mass1s + mass2s)
 
     # Extract SNRs from table.
     snrs = np.asarray([complex_from_polar(sngl_inspiral.snr, sngl_inspiral.coa_phase)
@@ -75,13 +73,13 @@ def ligolw_sky_map(nside, sngl_inspirals, f_low, min_distance=None, max_distance
 
     # Get SNR=1 horizon distances for each detector.
     horizons = np.asarray([
-        misc.get_horizon_distance(ifo, mchirp, f_low, f_high)
-        for ifo, mchirp, f_high in zip(ifos, mchirps, f_highs)])
+        misc.get_horizon_distance(ifo, mass1, mass2, order=order, f_low=f_low)
+        for ifo, mass1, mass2 in zip(ifos, mass1s, mass2s)])
 
     # Get effective bandwidths for each detector.
     bandwidths = np.asarray([
-        misc.get_effective_bandwidth(ifo, f_low, f_high)
-        for ifo, f_high in zip(ifos, f_highs)])
+        misc.get_effective_bandwidth(ifo, mass1, mass2, order=order, f_low=f_low)
+        for ifo, mass1, mass2 in zip(ifos, mass1s, mass2s)])
 
     # Estimate TOA uncertainty (squared) using CRLB evaluated at MEASURED
     # values of the SNRs.

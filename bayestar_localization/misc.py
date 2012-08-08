@@ -43,46 +43,60 @@ def get_noise_psd_func(ifo):
     return func
 
 
-def get_noise_moment(ifo, order, f_low=10., f_high=1560.):
+def get_noise_integral(ifo, power, mass1, mass2, order=7, f_low=10, norm=False):
+    """Calculate the integral of 4 |h(f)|^2 * f^power / S(f) from f=f_low
+    to f_LSO, where h(f) is a post-Newtonian signal of the given amplitude
+    order for an optimally oriented inspiral source at a distance of 1 Mpc,
+    and S(f) is the noise power spectral density for the interferometer whose
+    two-letter site name is given by ifo. If norm=True, then divide the
+    result by the integral of 4 |h(f)|^2 / S(f) before returning."""
+
     # Integration step in Hz.
     df = 1.
 
-    # Evaluation frequencies.
-    f = np.linspace(f_low, f_high, (f_high - f_low) / df)
+    # Frequency-domain post-Newtonian inspiral waveform.
+    h = lalsimulation.SimInspiralTaylorF2(0, df,
+        mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
+        f_low, 1e6 * lal.LAL_PC_SI, 0, order)
+
+    # Find indices of first and last nonzero samples.
+    nonzero = np.nonzero(h.data.data)[0]
+    first_nonzero = nonzero[0]
+    last_nonzero = nonzero[-1]
+
+    # Frequency sample points
+    f = h.f0 + h.deltaF * np.arange(first_nonzero, last_nonzero + 1)
+
+    # Throw away leading and trailing zeros.
+    h = h.data.data[first_nonzero:last_nonzero + 1]
 
     # Noise PSD function.
     S = get_noise_psd_func(ifo)
     S = [S(ff) for ff in f]
 
-    return np.sum(f ** (order - 7/3) / S) / np.sum(f ** (-7/3) / S)
+    denom_integrand = 4 * (np.square(h.real) + np.square(h.imag)) / S
+    num_integrand = denom_integrand * f ** power
+
+    ret = np.trapz(num_integrand, dx=df)
+
+    if norm:
+        ret /= np.trapz(denom_integrand, dx=df)
+    return ret
 
 
-def get_horizon_distance(ifo, mchirp=mchirp(1.4, 1.4), f_low=10., f_high=1560., snr_thresh=1):
+def get_noise_moment(ifo, power, mass1, mass2, order=7, f_low=10):
+    return get_noise_integral(ifo, power, mass1, mass2, order, f_low, True)
+
+
+def get_horizon_distance(ifo, mass1, mass2, order=7, f_low=10, snr_thresh=1):
     """Compute the distance at which a source would produce a maximum SNR of
     snr_thresh in the given interferometer."""
 
-    # Chirp mass in seconds.
-    tchirp = lal.LAL_MTSUN_SI * mchirp
-
-    # Integration step in Hz.
-    df = 1.
-
-    # Evaluation frequencies.
-    f = np.linspace(f_low, f_high, (f_high - f_low) / df)
-
-    # Noise PSD function.
-    S = get_noise_psd_func(ifo)
-    S = [S(ff) for ff in f]
-
-    Dhor = np.sum(f ** (-7/3) / S * df)
-    Dhor = np.sqrt(5/6 * Dhor)
-    Dhor *= tchirp ** (5/6) * np.pi ** (-2/3) * lal.LAL_C_SI / snr_thresh
-    Dhor /= 1e6 * lal.LAL_PC_SI
-    return Dhor
+    return np.sqrt(get_noise_integral(ifo, 0, mass1, mass2, order, f_low)) / snr_thresh
 
 
-def get_effective_bandwidth(ifo, f_low=10., f_high=1560.):
-    return np.sqrt(get_noise_moment(ifo, 2, f_low, f_high))
+def get_effective_bandwidth(ifo, mass1, mass2, order=7, f_low=10):
+    return np.sqrt(get_noise_moment(ifo, 2, mass1, mass2, order, f_low))
 
 
 def get_f_lso(mass1, mass2):
