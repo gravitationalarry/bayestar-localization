@@ -252,7 +252,7 @@ for sim_inspiral in sim_inspiral_table:
         sngl_inspiral.end_time = (epoch + toa).gpsSeconds
         sngl_inspiral.end_time_ns = (epoch + toa).gpsNanoSeconds
         sngl_inspiral.snr = abs_snr
-        sngl_inspiral.coa_phase = np.angle(1j * arg_snr)
+        sngl_inspiral.coa_phase = np.angle(np.exp(1j * arg_snr))
         sngl_inspiral.eff_distance = horizon / sngl_inspiral.snr
         sngl_inspiral_table.append(sngl_inspiral)
 
