@@ -60,7 +60,9 @@ parser = OptionParser(
         Option("--fd", action="store_true", default=False,
             help="Use frequency-domain waveforms for templates (default=false)"),
         Option("--snr-threshold", type=float, default=8.,
-            help="Single-detector SNR threshold (default=8)")
+            help="Single-detector SNR threshold (default=8)"),
+        Option("--min-triggers", type=int, default=3,
+            help="Emit coincidences only when at least this many triggers are found (default=3)")
     ]
 )
 opts, args = parser.parse_args()
@@ -259,7 +261,6 @@ for sim_inspiral in sim_inspiral_table:
         for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
             setattr(sngl_inspiral, validcolumn, None)
         sngl_inspiral.process_id = process.process_id
-        sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
         sngl_inspiral.ifo = ifo
         sngl_inspiral.mass1 = mass1
         sngl_inspiral.mass2 = mass2
@@ -268,29 +269,35 @@ for sim_inspiral in sim_inspiral_table:
         sngl_inspiral.snr = abs(rhomax)
         sngl_inspiral.coa_phase = np.angle(rhomax)
         sngl_inspiral.eff_distance = horizon / sngl_inspiral.snr
-        sngl_inspiral_table.append(sngl_inspiral)
         sngl_inspirals.append(sngl_inspiral)
 
-    # If any triggers were found, then store coincidences.
-    if sngl_inspirals:
-        # Add Coinc table entry.
-        coinc = lsctables.Coinc()
-        coinc.coinc_event_id = coinc_table.get_next_id()
-        coinc.process_id = process.process_id
-        coinc.coinc_def_id = coinc_def_id
-        coinc.time_slide_id = time_slide_id
-        coinc.set_instruments(opts.detector)
-        coinc.nevents = len(opts.detector)
-        coinc.likelihood = None
-        coinc_table.append(coinc)
+    # If too few triggers were found, then skip this event.
+    if len(sngl_inspirals) < opts.min_triggers:
+        continue
 
-        for sngl_inspiral in sngl_inspirals:
-            # Add CoincMap entry.
-            coinc_map = lsctables.CoincMap()
-            coinc_map.coinc_event_id = coinc.coinc_event_id
-            coinc_map.table_name = sngl_inspiral_table.tableName
-            coinc_map.event_id = sngl_inspiral.event_id
-            coinc_map_table.append(coinc_map)
+    # Add Coinc table entry.
+    coinc = lsctables.Coinc()
+    coinc.coinc_event_id = coinc_table.get_next_id()
+    coinc.process_id = process.process_id
+    coinc.coinc_def_id = coinc_def_id
+    coinc.time_slide_id = time_slide_id
+    coinc.set_instruments(opts.detector)
+    coinc.nevents = len(opts.detector)
+    coinc.likelihood = None
+    coinc_table.append(coinc)
+
+    # Record all sngl_inspiral records and associate them with coincidences.
+    for sngl_inspiral in sngl_inspirals:
+        # Give this sngl_inspiral record an id and add it to the table.
+        sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
+        sngl_inspiral_table.append(sngl_inspiral)
+
+        # Add CoincMap entry.
+        coinc_map = lsctables.CoincMap()
+        coinc_map.coinc_event_id = coinc.coinc_event_id
+        coinc_map.table_name = sngl_inspiral_table.tableName
+        coinc_map.event_id = sngl_inspiral.event_id
+        coinc_map_table.append(coinc_map)
 
 
 # Record process end time.
