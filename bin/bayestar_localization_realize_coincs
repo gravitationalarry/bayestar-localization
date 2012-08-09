@@ -207,7 +207,7 @@ for sim_inspiral in sim_inspiral_table:
     abs_snrs = np.abs(snrs)
     arg_snrs = np.angle(snrs)
 
-    sigmas = [np.asmatrix([[1, -omega1], [-omega1, omega2]]).I
+    sigmas = [np.asarray(np.asmatrix([[1, -omega1], [-omega1, omega2]]).I)
         for omega1, omega2 in zip(omega1s, omega2s)]
 
     if opts.toa_error_from_estimator:
