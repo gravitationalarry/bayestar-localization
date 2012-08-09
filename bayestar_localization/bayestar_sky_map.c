@@ -361,7 +361,6 @@ int bayestar_sky_map_tdoa_snr(
             const double twopsi = (2 * M_PI / ntwopsi) * itwopsi;
             const double costwopsi = cos(twopsi);
             const double sintwopsi = sin(twopsi);
-            int iu;
 
             /* Integrate over u; since integrand only depends on u^2 we only
              * have to go from u=0 to u=1. We want to include u=1, so the upper
