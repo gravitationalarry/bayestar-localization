@@ -214,18 +214,14 @@ for sim_inspiral in sim_inspiral_table:
         for i in range(len(snrs)):
             sigma = sigmas[i]
             abs_snr = abs_snrs[i]
-            dphi, dt = np.random.multivariate_normal([0, 0], sigma / abs_snr**2)
-            arg_snrs[i] += dphi
-            toas[i] += dt
+            arg_snrs[i], toas[i]  = np.random.multivariate_normal([arg_snrs[i], toas[i]], sigma / abs_snr**2)
     else:
         # Otherwise, by defualt, apply noise to TOAs and phases first.
 
         for i in range(len(snrs)):
             sigma = sigmas[i]
             abs_snr = abs_snrs[i]
-            dphi, dt = np.random.multivariate_normal([0, 0], sigma / abs_snr**2)
-            arg_snrs[i] += dphi
-            toas[i] += dt
+            arg_snrs[i], toas[i]  = np.random.multivariate_normal([arg_snrs[i], toas[i]], sigma / abs_snr**2)
 
         # Add noise to SNR estimates.
         abs_snrs += np.random.randn(len(abs_snrs))
