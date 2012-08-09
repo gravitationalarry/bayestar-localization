@@ -232,10 +232,10 @@ int bayestar_sky_map_tdoa_snr(
      * will be used in solving the quadratic to find the breakpoints */
     static const double eta = 0.01;
 
-    /* Use this many integration samples in 2*psi  */
+    /* Use this many integration steps in 2*psi  */
     static const int ntwopsi = 16;
 
-    /* Number of integration steps in cosine integration */
+    /* Number of integration steps in cos(inclination) */
     static const int nu = 16;
 
     /* Determine the lateral HEALPix resolution. */
@@ -363,23 +363,39 @@ int bayestar_sky_map_tdoa_snr(
             const double sintwopsi = sin(twopsi);
             int iu;
 
-            /* Integrate over u; since integrand only depends on u^2 we only have to go fro u=0 to u=1. We want to include u=1, so the upper limit has to be <=*/
+            /* Integrate over u; since integrand only depends on u^2 we only
+             * have to go from u=0 to u=1. We want to include u=1, so the upper
+             * limit has to be <= */
             for (iu = 0; iu <= nu; iu++)
             {
                 const double u = (double)iu / nu;
                 const double u2 = u * u;
                 const double u4 = u2 * u2;
 
-                /* A and B come from solving A/r^2 + B/r + C = ln(eta) */
-                double A=0, B=0; /* A is SNR times the distance and is strictly negative */
+                double A = 0, B = 0;
                 double breakpoints[5];
                 int num_breakpoints = 0;
+
+                /* The log-likelihood is quadratic in the estimated and true
+                 * values of the SNR, and in 1/r. It is of the form A/r^2 + B/r,
+                 * where A depends only on the true values of the SNR and is
+                 * strictly negative and B depends on both the true values and
+                 * the estimates and is strictly positive.
+                 *
+                 * The middle breakpoint is at the maximum of the log-likelihood,
+                 * occurring at 1/r=-B/2A. The lower and upper breakpoints occur
+                 * when the likelihood becomes eta times its maximum value. This
+                 * occurs when
+                 *
+                 *   A/r^2 + B/r = log(eta) - B^2/4A.
+                 *
+                 */
 
                 /* Loop over detectors */
                 for (iifo = 0; iifo < nifos; iifo++)
                 {
-                    const double Fp = F[iifo][0]; /* F plus antenna factor times r */
-                    const double Fx = F[iifo][1]; /* F cross antenna factor times r */
+                    const double Fp = F[iifo][0]; /* `plus' antenna factor times r */
+                    const double Fx = F[iifo][1]; /* `cross' antenna factor times r */
                     const double FpFp = square(Fp);
                     const double FxFx = square(Fx);
                     const double FpFx = Fp * Fx;
@@ -406,9 +422,7 @@ int bayestar_sky_map_tdoa_snr(
                     breakpoints[num_breakpoints++] = max_distance;
 
                     for (i_breakpoint = 0; i_breakpoint < num_breakpoints; i_breakpoint ++)
-                    {
                         breakpoints[i_breakpoint] = log(breakpoints[i_breakpoint]);
-                    }
                 }
 
                 {
