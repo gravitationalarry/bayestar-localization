@@ -96,7 +96,7 @@ def get_horizon_distance(ifo, mass1, mass2, order=7, f_low=10, snr_thresh=1):
 
 
 def get_effective_bandwidth(ifo, mass1, mass2, order=7, f_low=10):
-    return np.sqrt(get_noise_moment(ifo, 2, mass1, mass2, order, f_low))
+    return np.sqrt(get_noise_moment(ifo, 2, mass1, mass2, order, f_low) - np.square(get_noise_moment(ifo, 1, mass1, mass2, order, f_low)))
 
 
 def get_f_lso(mass1, mass2):
