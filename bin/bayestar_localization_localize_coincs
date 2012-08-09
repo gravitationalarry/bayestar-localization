@@ -71,7 +71,10 @@ opts, args = OptionParser(
     ]
 ).parse_args()
 
-infilename = args[0]
+if len(args) > 0:
+    infilename = args[0]
+else:
+    infilename = '/dev/stdin'
 
 if opts.min_distance is None:
     raise ValueError("Missing required argument --min-distance")
