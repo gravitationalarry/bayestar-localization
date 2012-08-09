@@ -69,6 +69,7 @@ import os
 from glue.ligolw import ligolw
 from pylal import llwapp as ligolw_app
 from glue.ligolw.utils import process as ligolw_process
+from glue.ligolw.utils import search_summary as ligolw_search_summary
 from glue.ligolw import table as ligolw_table
 from pylal import ligolw_thinca
 from glue.ligolw import utils as ligolw_utils
@@ -99,8 +100,8 @@ process = ligolw_process.register_to_xmldoc(out_xmldoc, parser.get_prog_name(),
 all_time = segments.segment([glue.lal.LIGOTimeGPS(0), glue.lal.LIGOTimeGPS(2e9)])
 search_summary_table = lsctables.New(lsctables.SearchSummaryTable)
 out_xmldoc.childNodes[0].appendChild(search_summary_table)
-summary = ligolw_app.append_search_summary(out_xmldoc, process, inseg=all_time,
-    outseg=all_time)
+summary = ligolw_search_summary.append_search_summary(out_xmldoc, process,
+    inseg=all_time, outseg=all_time)
 
 # Read injection file.
 xmldoc = ligolw_utils.load_filename(infilename)
