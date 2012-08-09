@@ -218,7 +218,7 @@ for sim_inspiral in sim_inspiral_table:
         for i in range(len(snrs)):
             sigma = sigmas[i]
             abs_snr = abs_snrs[i]
-            dphi, dt = np.random.multivariate_normal([0, 0], sigma / abs_snr)
+            dphi, dt = np.random.multivariate_normal([0, 0], sigma / abs_snr**2)
             arg_snrs[i] += dphi
             toas[i] += dt
     else:
@@ -227,7 +227,7 @@ for sim_inspiral in sim_inspiral_table:
         for i in range(len(snrs)):
             sigma = sigmas[i]
             abs_snr = abs_snrs[i]
-            dphi, dt = np.random.multivariate_normal([0, 0], sigma / abs_snr)
+            dphi, dt = np.random.multivariate_normal([0, 0], sigma / abs_snr**2)
             arg_snrs[i] += dphi
             toas[i] += dt
 
