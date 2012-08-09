@@ -106,4 +106,4 @@ def get_f_lso(mass1, mass2):
 
 def toa_uncertainty(snr, bandwidth):
     """Estimate uncertainty in TOA measurements using Cramer-Rao bound."""
-    return 1 / (2 * np.pi * abs(snr) * bandwidth)
+    return 1 / (2 * np.pi * np.abs(snr) * bandwidth)
