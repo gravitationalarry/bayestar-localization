@@ -411,7 +411,7 @@ int bayestar_sky_map_tdoa_snr(
                     }
                 }
 
-                    {
+                {
                     /* Perform adaptive integration. Stop when a relative
                      * accuracy of 0.05 has been reached. */
                     inner_integrand_params integrand_params = {A, B, -0.25 * square(B) / A};
@@ -443,6 +443,7 @@ int bayestar_sky_map_tdoa_snr(
         /* Accumulate (log) posterior terms for SNR and TDOA. */
         P[ipix] += accum;
     }
+
     /* Restore old error handler. */
     gsl_set_error_handler(old_handler);
 
