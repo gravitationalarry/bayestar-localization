@@ -35,11 +35,17 @@
 #include <gsl/gsl_vector.h>
 
 
+static double square(double a)
+{
+    return a * a;
+}
+
+
 /* Copied from lal's TimeDelay.c */
 /* scalar product of two 3-vectors */
 static double dotprod(const double vec1[3], const double vec2[3])
 {
-	return vec1[0] * vec2[0] + vec1[1] * vec2[1] + vec1[2] * vec2[2];
+    return vec1[0] * vec2[0] + vec1[1] * vec2[1] + vec1[2] * vec2[2];
 }
 
 
@@ -160,42 +166,32 @@ int bayestar_sky_map_tdoa(
 }
 
 
-#define INTEGRAND_COUNT_NODES 15
-#define INTEGRAND_COUNT_SAMPLES (INTEGRAND_COUNT_NODES * INTEGRAND_COUNT_NODES)
-
-
 typedef struct {
-    double a;
+    double A;
+    double B;
     double log_offset;
 } inner_integrand_params;
 
 
 /* Radial integrand for uniform-in-log-distance prior. */
-static double radial_integrand_uniform_in_log_distance(double log_x, void *params)
+static double radial_integrand_uniform_in_log_distance(double log_r, void *params)
 {
     const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
 
-    /* We'll need to divide by 1/x and also 1/x^2. We can save one division by
-     * computing 1/x and then squaring it. */
-    const double onebyx = exp(-log_x);
-    const double onebyx2 = onebyx * onebyx;
-    const double I0_arg = onebyx / integrand_params->a;
-    return exp(I0_arg - 0.5 * onebyx2 - integrand_params->log_offset) * gsl_sf_bessel_I0_scaled(I0_arg);
+    const double onebyr = exp(-log_r);
+    const double onebyr2 = onebyr * onebyr;
+    return exp(integrand_params->A * onebyr2 + integrand_params->B * onebyr - integrand_params->log_offset);
 }
 
 
 /* Radial integrand for uniform-in-volume prior. */
-static double radial_integrand_uniform_in_volume(double log_x, void *params)
+static double radial_integrand_uniform_in_volume(double log_r, void *params)
 {
     const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
 
-    /* We'll need to divide by 1/x and also 1/x^2. We can save one division by
-     * computing 1/x and then squaring it. */
-    const double onebyx = exp(-log_x);
-    const double onebyx2 = onebyx * onebyx;
-    const double x3 = 1 / (onebyx2 * onebyx);
-    const double I0_arg = onebyx / integrand_params->a;
-    return exp(I0_arg - 0.5 * onebyx2 - integrand_params->log_offset) * gsl_sf_bessel_I0_scaled(I0_arg) * x3;
+    const double onebyr = exp(-log_r);
+    const double onebyr2 = onebyr * onebyr;
+    return exp(integrand_params->A * onebyr2 + integrand_params->B * onebyr - integrand_params->log_offset + 3 * log_r);
 }
 
 
@@ -232,29 +228,15 @@ int bayestar_sky_map_tdoa_snr(
     /* Maximum number of subdivisions for adaptive integration. */
     static const size_t subdivision_limit = 64;
 
-    /* Constants that determine how much of the peak in the likelihood to enclose in integration break points. */
-    static const double y1 = 0.01, y2 = 0.005;
-    const double upper_breakpoint_default = (log(y2) - sqrt(log(y1) * log(y2))) / (sqrt(-2 * log(y2)) * (log(y2) - log(y1)));
+    /* Subdivide radial integral where likelihood is this fraction of the maximum,
+     * will be used in solving the quadratic to find the breakpoints */
+    static const double eta = 0.01;
 
-    /* Precalculate trigonometric that occur in the integrand. */
-    double u4_6u2_1[INTEGRAND_COUNT_NODES];
-    double u4_2u2_1[INTEGRAND_COUNT_NODES];
-    double u3_u[INTEGRAND_COUNT_NODES];
-    double cosines[INTEGRAND_COUNT_NODES];
-    double sines[INTEGRAND_COUNT_NODES];
-    for (i = -(INTEGRAND_COUNT_NODES / 2); i <= (INTEGRAND_COUNT_NODES / 2); i ++)
-    {
-        const double u = (double) i / (INTEGRAND_COUNT_NODES / 2);
-        const double u2 = u * u;
-        const double u3 = u2 * u;
-        const double u4 = u3 * u;
-        const double angle = M_PI * u;
-        u4_6u2_1[i + (INTEGRAND_COUNT_NODES / 2)] = u4 + 6 * u2 + 1;
-        u4_2u2_1[i + (INTEGRAND_COUNT_NODES / 2)] = u4 - 2 * u2 + 1;
-        u3_u[i + (INTEGRAND_COUNT_NODES / 2)] = u3 + u;
-        cosines[i + (INTEGRAND_COUNT_NODES / 2)] = cos(angle);
-        sines[i + (INTEGRAND_COUNT_NODES / 2)] = sin(angle);
-    }
+    /* Use this many integration samples in 2*psi  */
+    static const int ntwopsi = 16;
+
+    /* Number of integration steps in cosine integration */
+    static const int nu = 16;
 
     /* Determine the lateral HEALPix resolution. */
     nside = npix2nside(npix);
@@ -345,150 +327,122 @@ int bayestar_sky_map_tdoa_snr(
     for (i = 0; i < maxpix; i ++)
     {
         long ipix = gsl_permutation_get(pix_perm, i);
+        double F[nifos][2];
+        double theta, phi;
+        int itwopsi, iu, iifo;
+        double accum = -INFINITY;
 
-        /* Pre-compute some coefficients in the integrand that are determined by antenna factors and SNR. */
-        double e, f, g;
-        double c1, c2, c3, c4;
+        /* Prepare workspace for adaptive integrator. */
+        gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(subdivision_limit);
+
+        /* If the workspace could not be allocated, then record the GSL
+         * error value for later reporting when we leave the parallel
+         * section. Then, skip to the next loop iteration. */
+        if (!workspace)
         {
-            int j;
-            double theta, phi;
-            double a, b, c, d;
-            pix2ang_ring(nside, ipix, &theta, &phi);
-            for (j = 0, a = 0, b = 0, c = 0, d = 0, e = 0, f = 0, g = 0; j < nifos; j ++)
-            {
-                double Fp, Fx;
-                XLALComputeDetAMResponse(&Fp, &Fx, responses[j], phi, M_PI_2 - theta, 0, gmst);
-                Fp *= d1[j];
-                Fx *= d1[j];
-                a += Fp * creal(snrs[j]);
-                b += Fx * cimag(snrs[j]);
-                c += Fx * creal(snrs[j]);
-                d += Fp * cimag(snrs[j]);
-                g += Fp * Fx;
-                Fp *= Fp;
-                Fx *= Fx;
-                e += Fp + Fx;
-                f += Fp - Fx;
-            }
-            c1 = a * b - c * d;
-            c4 = (a * c + b * d) / 4;
-            a *= a;
-            b *= b;
-            c *= c;
-            d *= d;
-            c2 = (a + b + c + d) / 8;
-            c3 = (a - b - c + d) / 8;
+            gsl_errnos[i] = GSL_ENOMEM;
+            continue;
         }
-        e /= 8;
-        f /= 8;
-        g /= 4;
 
-        /* Evaluate integral on a regular lattice in psi and cos(i) and using
-         * adaptive quadrature over log(distance). */
+        /* Look up polar coordinates of this pixel */
+        pix2ang_ring(nside, ipix, &theta, &phi);
+
+        /* Look up antenna factors */
+        for (iifo = 0; iifo < nifos; iifo ++)
         {
-            int j;
-            double accum;
+            XLALComputeDetAMResponse(&F[iifo][0], &F[iifo][1], responses[iifo], phi, M_PI_2 - theta, 0, gmst);
+            F[iifo][0] *= d1[iifo];
+            F[iifo][1] *= d1[iifo];
+        }
 
-            /* Prepare workspace for adaptive integrator. */
-            gsl_integration_workspace *workspace = gsl_integration_workspace_alloc(subdivision_limit);
+        /* Integrate over 2*psi */
+        for (itwopsi = 0; itwopsi < ntwopsi; itwopsi++)
+        {
+            const double twopsi = (2 * M_PI / ntwopsi) * itwopsi;
+            const double costwopsi = cos(twopsi);
+            const double sintwopsi = sin(twopsi);
+            int iu;
 
-            /* If the workspace could not be allocated, then record the GSL
-             * error value for later reporting when we leave the parallel
-             * section. Then, skip to the next loop iteration. */
-            if (!workspace)
+            /* Integrate over u; since integrand only depends on u^2 we only have to go fro u=0 to u=1. We want to include u=1, so the upper limit has to be <=*/
+            for (iu = 0; iu <= nu; iu++)
             {
-                gsl_errnos[i] = GSL_ENOMEM;
-                continue;
-            }
+                const double u = (double)iu / nu;
+                const double u2 = u * u;
+                const double u4 = u2 * u2;
 
-            /* Loop over cos(i). */
-            for (accum = -INFINITY, j = 0; j < INTEGRAND_COUNT_NODES; j ++)
-            {
-                /* Coefficients in integrand that are determined by antenna factors, SNR, and cos(i), but not psi. */
-                const double args0 = u4_6u2_1[j] * e;
-                const double args1 = u3_u[j] * c1 + u4_6u2_1[j] * c2;
+                /* A and B come from solving A/r^2 + B/r + C = ln(eta) */
+                double A=0, B=0; /* A is SNR times the distance and is strictly negative */
+                double breakpoints[5];
+                int num_breakpoints = 0;
 
-                int k;
-
-                /* Loop over psi. */
-                for (k = 0; k < INTEGRAND_COUNT_NODES; k ++)
+                /* Loop over detectors */
+                for (iifo = 0; iifo < nifos; iifo++)
                 {
-                    /* Variables to store output from integrator. */
-                    double result = NAN, abserr = NAN;
+                    const double Fp = F[iifo][0]; /* F plus antenna factor times r */
+                    const double Fx = F[iifo][1]; /* F cross antenna factor times r */
+                    const double FpFp = square(Fp);
+                    const double FxFx = square(Fx);
+                    const double FpFx = Fp * Fx;
+                    const double rhotimesr2 = 0.125 * ((FpFp + FxFx) * (1 + 6*u2 + u4) + square(1 - u2) * ((FpFp - FxFx) * costwopsi + 2 * FpFx * sintwopsi));
+                    const double rhotimesr = sqrt(rhotimesr2);
 
-                    /* Coefficients in integrand that are determined by antenna factors, SNR, cos(i), and psi. */
-                    const double num = args1 + u4_2u2_1[j] * (c3 * cosines[k] + c4 * sines[k]);
-                    const double den = args0 + u4_2u2_1[j] * (f * cosines[k] + g * sines[k]);
-                    const double a2 = den / num;
-                    const double a = sqrt(a2);
-                    const double sqrt_den = sqrt(den);
+                    A += rhotimesr2;
+                    B += rhotimesr * cabs(snrs[iifo]);
+                }
+                A *= -0.5;
 
-                    /* Create data structures for integrand callback. */
-                    inner_integrand_params integrand_params = {a, 0.5 / a2};
-                    const gsl_function func = {radial_integrand, &integrand_params};
+                {
+                    int i_breakpoint;
+                    const double middle_breakpoint = -2 * A / B;
+                    const double lower_breakpoint = 1 / (1 / middle_breakpoint + sqrt(log(eta) / A));
+                    const double upper_breakpoint = 1 / (1 / middle_breakpoint - sqrt(log(eta) / A));
+                    breakpoints[num_breakpoints++] = min_distance;
+                    if(lower_breakpoint > breakpoints[num_breakpoints-1] && lower_breakpoint < max_distance)
+                        breakpoints[num_breakpoints++] = lower_breakpoint;
+                    if(middle_breakpoint > breakpoints[num_breakpoints-1] && middle_breakpoint < max_distance)
+                        breakpoints[num_breakpoints++] = middle_breakpoint;
+                    if(upper_breakpoint > breakpoints[num_breakpoints-1] && upper_breakpoint < max_distance)
+                        breakpoints[num_breakpoints++] = upper_breakpoint;
+                    breakpoints[num_breakpoints++] = max_distance;
 
-                    /* Limits of integration. */
-                    const double x1 = min_distance / sqrt_den;
-                    const double x2 = max_distance / sqrt_den;
-
-                    /* Find break points in integration interval that enclose the peak in the likelihood function. */
-                    const double lower_breakpoint = (a - a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1));
-                    const double upper_breakpoint = (a < 1 / sqrt(-2 * log(y2)))
-                        ? ((a + a2 * sqrt(-2 * log(y1))) / (1 + 2 * a2 * log(y1)))
-                        : upper_breakpoint_default;
-
-                    /* Create list of integration break points. */
-                    double breakpoints[4];
-                    int num_breakpoints = 0;
-                    /* Always start with lower limit of integration. */
-                    breakpoints[num_breakpoints++] = log(x1);
-                    /* If integration interval contains lower break point, add it. */
-                    if (lower_breakpoint > x1 && lower_breakpoint < x2)
-                        breakpoints[num_breakpoints++] = log(lower_breakpoint);
-                    /* If integration interval contains upper break point, add it too. */
-                    if (upper_breakpoint > x1 && upper_breakpoint < x2)
-                        breakpoints[num_breakpoints++] = log(upper_breakpoint);
-                    /* Always end with upper limit of integration. */
-                    breakpoints[num_breakpoints++] = log(x2);
-
-                    if (prior == BAYESTAR_PRIOR_UNIFORM_IN_VOLUME)
-                        integrand_params.log_offset += 3 * log(a);
+                    for (i_breakpoint = 0; i_breakpoint < num_breakpoints; i_breakpoint ++)
+                    {
+                        breakpoints[i_breakpoint] = log(breakpoints[i_breakpoint]);
+                    }
+                }
 
                     {
-                        /* Perform adaptive integration. Stop when a relative
-                         * accuracy of 0.05 has been reached. */
-                        int ret = gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.05, subdivision_limit, workspace, &result, &abserr);
+                    /* Perform adaptive integration. Stop when a relative
+                     * accuracy of 0.05 has been reached. */
+                    inner_integrand_params integrand_params = {A, B, -0.25 * square(B) / A};
+                    const gsl_function func = {radial_integrand, &integrand_params};
+                    double result, abserr;
+                    int ret = gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.05, subdivision_limit, workspace, &result, &abserr);
 
-                        /* If the integrator failed, then record the GSL error
-                         * value for later reporting when we leave the parallel
-                         * section. Then, break out of the inner loop. */
-                        if (ret != GSL_SUCCESS)
-                        {
-                            gsl_errnos[i] = ret;
-                            break;
-                        }
-
-                        /* Take the logarithm and put the log-normalization back in. */
-                        result = log(result) + integrand_params.log_offset;
+                    /* If the integrator failed, then record the GSL error
+                     * value for later reporting when we leave the parallel
+                     * section. Then, break out of the inner loop. */
+                    if (ret != GSL_SUCCESS)
+                    {
+                        gsl_errnos[i] = ret;
+                        break;
                     }
 
-                    /* If the radial integral was nonzero ,then accumulate the
-                     * log posterior for this cos(i) and psi. */
+                    /* Take the logarithm and put the log-normalization back in. */
+                    result = log(result) + integrand_params.log_offset;
                     if (result > -INFINITY) {
                         const double max_log_p = fmax(result, accum);
                         accum = log(exp(result - max_log_p) + exp(accum - max_log_p)) + max_log_p;
                     }
                 }
             }
-
-            /* Discard workspace for adaptive integrator. */
-            gsl_integration_workspace_free(workspace);
-
-            /* Accumulate (log) posterior terms for SNR and TDOA. */
-            P[ipix] += accum;
         }
-    }
+        /* Discard workspace for adaptive integrator. */
+        gsl_integration_workspace_free(workspace);
 
+        /* Accumulate (log) posterior terms for SNR and TDOA. */
+        P[ipix] += accum;
+    }
     /* Restore old error handler. */
     gsl_set_error_handler(old_handler);
 
