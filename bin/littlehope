@@ -94,7 +94,7 @@ import lal, lalsimulation
 
 # BAYESTAR imports.
 from bayestar_localization import misc
-import timing
+from bayestar_localization import timing
 
 # Other imports.
 import numpy as np
