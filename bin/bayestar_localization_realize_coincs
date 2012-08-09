@@ -185,11 +185,6 @@ for sim_inspiral in sim_inspiral_table:
         (2 * np.pi) ** 2 * misc.get_noise_moment(ifo, 2, m1, m2, f_low=f_low, order=order)
         for ifo in opts.detector])
 
-    # Get effective bandwidths for each detector.
-    bandwidths = np.asarray([
-        misc.get_effective_bandwidth(ifo, m1, m2, f_low=f_low, order=order)
-        for ifo in opts.detector])
-
     # Get antenna factors for each detector.
     F = np.asarray([inject.XLALComputeDetAMResponse(response, ra, dec, 0, gmst)
         for response in responses]).T
