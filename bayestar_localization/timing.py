@@ -160,7 +160,7 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd
             f_low, float('inf'),
             1e6 * lal.LAL_PC_SI,
             0, 0, 0,
-            lalsimulation.LAL_SIM_INSPIRAL_INTERACTION_NONE,
+            None, None,
             lalsimulation.LAL_PNORDER_THREE,
             lalsimulation.LAL_PNORDER_THREE_POINT_FIVE,
             lalsimulation.TaylorT4)
