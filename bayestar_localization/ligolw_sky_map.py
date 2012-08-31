@@ -71,19 +71,18 @@ def ligolw_sky_map(nside, sngl_inspirals, order, f_low, min_distance=None, max_d
     epoch = date.XLALINT8NSToGPS(mean_toa_ns)
     gmst = date.XLALGreenwichMeanSiderealTime(epoch)
 
+    # Signal models for each detector.
+    signal_models = [misc.SignalModel(mass1, mass2, misc.get_noise_psd_func(ifo), order=order)
+        for mass1, mass2, ifo in zip(mass1s, mass2s, ifos)]
+
     # Get SNR=1 horizon distances for each detector.
-    horizons = np.asarray([
-        misc.get_horizon_distance(ifo, mass1, mass2, order=order, f_low=f_low)
-        for ifo, mass1, mass2 in zip(ifos, mass1s, mass2s)])
+    horizons = [signal_model.get_horizon_distance()
+        for signal_model in signal_models]
 
-    # Get effective bandwidths for each detector.
-    bandwidths = np.asarray([
-        misc.get_effective_bandwidth(ifo, mass1, mass2, order=order, f_low=f_low)
-        for ifo, mass1, mass2 in zip(ifos, mass1s, mass2s)])
-
-    # Estimate TOA uncertainty (squared) using CRLB evaluated at MEASURED
+    # Estimate TOA uncertainty (squared) using CRB or BRB evaluated at MEASURED
     # values of the SNRs.
-    s2_toas = misc.toa_uncertainty(snrs, bandwidths) ** 2
+    s2_toas = [np.square(signal_model.get_toa_uncert(np.abs(snr)))
+        for signal_model, snr in zip(signal_models, snrs)]
 
     # Look up physical parameters for detector.
     detectors = [lalsimulation.InstrumentNameToLALDetector(str(ifo))

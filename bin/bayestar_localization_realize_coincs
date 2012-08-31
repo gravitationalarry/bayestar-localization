@@ -172,18 +172,13 @@ for sim_inspiral in sim_inspiral_table:
     M *= np.diag((cosinc, 0.5 * (1 + cosinc * cosinc)))
     M *= ((cospsi, sinpsi), (-sinpsi, cospsi))
 
-    # Get SNR=1 horizon distances for each detector.
-    horizons = np.asarray([
-        misc.get_horizon_distance(ifo, m1, m2, f_low=f_low, order=order)
-        for ifo in opts.detector])
+    # Signal models for each detector.
+    signal_models = [misc.SignalModel(m1, m2, misc.get_noise_psd_func(ifo), order=order, f_low=f_low)
+        for ifo in opts.detector]
 
-    # Get noise moments for each detector.
-    omega1s = np.asarray([
-        2 * np.pi * misc.get_noise_moment(ifo, 1, m1, m2, f_low=f_low, order=order)
-        for ifo in opts.detector])
-    omega2s = np.asarray([
-        (2 * np.pi) ** 2 * misc.get_noise_moment(ifo, 2, m1, m2, f_low=f_low, order=order)
-        for ifo in opts.detector])
+    # Get SNR=1 horizon distances for each detector.
+    horizons = np.asarray([signal_model.get_horizon_distance()
+        for signal_model in signal_models])
 
     # Get antenna factors for each detector.
     F = np.asarray([inject.XLALComputeDetAMResponse(response, ra, dec, 0, gmst)
@@ -202,26 +197,19 @@ for sim_inspiral in sim_inspiral_table:
     abs_snrs = np.abs(snrs)
     arg_snrs = np.angle(snrs)
 
-    sigmas = [np.asarray(np.asmatrix([[1, -omega1], [-omega1, omega2]]).I)
-        for omega1, omega2 in zip(omega1s, omega2s)]
-
     if opts.toa_error_from_estimator:
         # If user asked, apply noise to amplitudes /before/ adding noise to TOAs and phases.
 
         # Add noise to SNR estimates.
         abs_snrs += np.random.randn(len(abs_snrs))
 
-        for i in range(len(snrs)):
-            sigma = sigmas[i]
-            abs_snr = abs_snrs[i]
-            arg_snrs[i], toas[i]  = np.random.multivariate_normal([arg_snrs[i], toas[i]], sigma / abs_snr**2)
+        for i, signal_model in enumerate(signal_models):
+            arg_snrs[i], toas[i]  = np.random.multivariate_normal([arg_snrs[i], toas[i]], signal_model.get_cov(abs_snrs[i]))
     else:
         # Otherwise, by defualt, apply noise to TOAs and phases first.
 
-        for i in range(len(snrs)):
-            sigma = sigmas[i]
-            abs_snr = abs_snrs[i]
-            arg_snrs[i], toas[i]  = np.random.multivariate_normal([arg_snrs[i], toas[i]], sigma / abs_snr**2)
+        for i, signal_model in enumerate(signal_models):
+            arg_snrs[i], toas[i]  = np.random.multivariate_normal([arg_snrs[i], toas[i]], signal_model.get_cov(abs_snrs[i]))
 
         # Add noise to SNR estimates.
         abs_snrs += np.random.randn(len(abs_snrs))
