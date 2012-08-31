@@ -52,6 +52,8 @@ parser = OptionParser(
         Option("--detector", metavar='|'.join(available_ifos), action="append",
             help="Detectors to use.  May be specified multiple times.",
             choices=available_ifos),
+        Option("--trigger-window", type=float, default=0.1, metavar="SECONDS",
+            help="Search for a trigger across this many seconds before and after the time of the injection (default=0.1)"),
         Option("--interp-method", metavar='|'.join(available_interp_methods),
                default="lanczos", choices=available_interp_methods,
             help="Trigger interpolation method (default=lanczos)"),
@@ -237,7 +239,7 @@ for sim_inspiral in sim_inspiral_table:
         h = lalsimulation.SimDetectorStrainREAL8TimeSeries(hplus, hcross,
             ra, dec, psi, detector)
 
-        horizon = misc.get_horizon_distance(ifo, mass1, mass2, f_low=f_low, order=7)
+        horizon = misc.SignalModel(mass1, mass2, misc.get_noise_psd_func(ifo), f_low=opts.f_low).get_horizon_distance()
 
         # Add injection to data
         lal.AddREAL8TimeSeries(x, h)
@@ -247,7 +249,9 @@ for sim_inspiral in sim_inspiral_table:
         rho = timing.fftfilt(zW, x.data.data)[len(zW)-1:]
 
         # Find maximum index
-        imax = np.argmax(timing.abs2(rho))
+        i0 = long(round(-(template_duration + float(x.epoch - end_time)) * sample_rate))
+        di = long(round(sample_rate * opts.trigger_window))
+        imax = np.argmax(timing.abs2(rho[i0 - di:i0 + di])) + i0 - di
 
         # If SNR < threshold, then the injection is not found. Skip it.
         if abs(rho[imax]) < opts.snr_threshold:
