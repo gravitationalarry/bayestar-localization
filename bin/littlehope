@@ -239,7 +239,7 @@ for sim_inspiral in sim_inspiral_table:
         h = lalsimulation.SimDetectorStrainREAL8TimeSeries(hplus, hcross,
             ra, dec, psi, detector)
 
-        horizon = misc.SignalModel(mass1, mass2, misc.get_noise_psd_func(ifo), f_low=opts.f_low).get_horizon_distance()
+        horizon = misc.SignalModel(mass1, mass2, misc.get_noise_psd_func(ifo), f_low=f_low).get_horizon_distance()
 
         # Add injection to data
         lal.AddREAL8TimeSeries(x, h)
