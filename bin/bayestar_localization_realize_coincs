@@ -46,6 +46,10 @@ parser = OptionParser(
         Option("--detector", metavar='|'.join(available_ifos), action="append",
             help="Detectors to use.  May be specified multiple times.",
             choices=available_ifos),
+        Option("--snr-threshold", type=float, default=8.,
+            help="Single-detector SNR threshold (default=8)"),
+        Option("--min-triggers", type=int, default=3,
+            help="Emit coincidences only when at least this many triggers are found (default=3)"),
         Option("--toa-error-from-estimator", action="store_true", default=False,
             help="Compute time-of-arrival measurement error from estimate of " +
             "amplitude, rather than true value.")
@@ -214,6 +218,34 @@ for sim_inspiral in sim_inspiral_table:
         # Add noise to SNR estimates.
         abs_snrs += np.random.randn(len(abs_snrs))
 
+    sngl_inspirals = []
+
+    # Loop over individual detectors and create SnglInspiral entries.
+    for ifo, abs_snr, arg_snr, toa, horizon in zip(opts.detector, abs_snrs, arg_snrs, toas, horizons):
+
+        # If SNR < threshold, then the injection is not found. Skip it.
+        if abs_snr < opts.snr_threshold:
+            continue
+
+        # Create SnglInspiral entry.
+        sngl_inspiral = lsctables.SnglInspiral()
+        for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
+            setattr(sngl_inspiral, validcolumn, None)
+        sngl_inspiral.process_id = process.process_id
+        sngl_inspiral.ifo = ifo
+        sngl_inspiral.mass1 = m1
+        sngl_inspiral.mass2 = m2
+        sngl_inspiral.end_time = (epoch + toa).gpsSeconds
+        sngl_inspiral.end_time_ns = (epoch + toa).gpsNanoSeconds
+        sngl_inspiral.snr = abs_snr
+        sngl_inspiral.coa_phase = np.angle(np.exp(1j * arg_snr))
+        sngl_inspiral.eff_distance = horizon / sngl_inspiral.snr
+        sngl_inspirals.append(sngl_inspiral)
+
+    # If too few triggers were found, then skip this event.
+    if len(sngl_inspirals) < opts.min_triggers:
+        continue
+
     # Add Coinc table entry.
     coinc = lsctables.Coinc()
     coinc.coinc_event_id = coinc_table.get_next_id()
@@ -225,23 +257,10 @@ for sim_inspiral in sim_inspiral_table:
     coinc.likelihood = None
     coinc_table.append(coinc)
 
-    # Loop over individual detectors and add SnglInspiral and CoincMap entries.
-    for ifo, abs_snr, arg_snr, toa, horizon in zip(opts.detector, abs_snrs, arg_snrs, toas, horizons):
-
-        # Add SnglInspiral entry.
-        sngl_inspiral = lsctables.SnglInspiral()
-        for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
-            setattr(sngl_inspiral, validcolumn, None)
-        sngl_inspiral.process_id = process.process_id
+    # Record all sngl_inspiral records and associate them with coincidences.
+    for sngl_inspiral in sngl_inspirals:
+        # Give this sngl_inspiral record an id and add it to the table.
         sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
-        sngl_inspiral.ifo = ifo
-        sngl_inspiral.mass1 = m1
-        sngl_inspiral.mass2 = m2
-        sngl_inspiral.end_time = (epoch + toa).gpsSeconds
-        sngl_inspiral.end_time_ns = (epoch + toa).gpsNanoSeconds
-        sngl_inspiral.snr = abs_snr
-        sngl_inspiral.coa_phase = np.angle(np.exp(1j * arg_snr))
-        sngl_inspiral.eff_distance = horizon / sngl_inspiral.snr
         sngl_inspiral_table.append(sngl_inspiral)
 
         # Add CoincMap entry.
@@ -250,6 +269,7 @@ for sim_inspiral in sim_inspiral_table:
         coinc_map.table_name = sngl_inspiral_table.tableName
         coinc_map.event_id = sngl_inspiral.event_id
         coinc_map_table.append(coinc_map)
+
 
 # Record process end time.
 ligolw_process.set_process_end_time(process)
