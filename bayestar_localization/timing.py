@@ -61,7 +61,7 @@ def interpolate_psd(f, S):
 
 class SignalModel(object):
     """Class to speed up computation of signal/noise-weighted integrals and
-    Barankin and Cramer-Rao lower bounds on time and phase estimation."""
+    Barankin and Cramér-Rao lower bounds on time and phase estimation."""
 
     def __init__(self, mass1, mass2, S, order=7, f_low=10):
         """Create a TaylorF2 signal model with the given masses, PSD function
@@ -108,7 +108,7 @@ class SignalModel(object):
         return self.get_sn_average(lambda w: w**power)
 
     def get_crb(self, snr):
-        """Get the Cramer-Rao bound, or inverse Fisher information matrix,
+        """Get the Cramér-Rao bound, or inverse Fisher information matrix,
         describing the phase and time estimation covariance."""
         w1 = self.get_sn_moment(1)
         w2 = self.get_sn_moment(2)
@@ -177,7 +177,7 @@ class SignalModel(object):
         return BRB
 
     def get_cov(self, snr):
-        """Get the Barankin bound if snr < 20, or the Cramer-Rao bound otherwise."""
+        """Get the Barankin bound if snr < 20, or the Cramér-Rao bound otherwise."""
         if snr < 20:
             return self.get_brb(snr)
         else:
@@ -201,7 +201,7 @@ class SignalModel(object):
 
     def get_toa_uncert(self, snr):
         """Get timing uncertainty for a given signal to noise ratio. Use the
-        Barankin bound for snr < 20, and the Cramer-Rao bound for snr >= 20."""
+        Barankin bound for snr < 20, and the Cramér-Rao bound for snr >= 20."""
         return np.piecewise(snr, [snr < 20],
             [self.get_brb_toa_uncert, self.get_crb_toa_uncert])
 
