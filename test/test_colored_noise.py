@@ -16,6 +16,9 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 from __future__ import division
+"""
+Test generation of colored noise.
+"""
 
 import numpy as np
 from matplotlib import pyplot as plt
