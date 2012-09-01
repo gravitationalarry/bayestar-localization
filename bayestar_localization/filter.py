@@ -101,7 +101,7 @@ def colored_noise(epoch, duration, sample_rate, psd):
     xf = lal.CreateCOMPLEX16FrequencySeries(None, epoch, 0, 1 / duration,
         lal.lalDimensionlessUnit, data_length // 2 + 1)
     white_noise = (np.random.randn(len(xf.data.data)) + np.random.randn(len(xf.data.data)) * 1j) / np.sqrt(2)
-    xf.data.data = white_noise * np.sqrt(psd.data.data) / np.sqrt(2 * psd.deltaF)
+    xf.data.data = white_noise * np.sqrt(psd.data.data / (2 * psd.deltaF))
     xf.data.data[0] = 0
     lal.REAL8FreqTimeFFT(x, xf, plan)
     x.epoch = epoch
