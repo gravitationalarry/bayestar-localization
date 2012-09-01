@@ -24,7 +24,7 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 import time
 import numpy as np
 import bayestar_localization
-from bayestar_localization import misc
+from bayestar_localization import timing
 from pylal import date
 import lal, lalsimulation
 
@@ -72,7 +72,7 @@ def ligolw_sky_map(nside, sngl_inspirals, order, f_low, min_distance=None, max_d
     gmst = date.XLALGreenwichMeanSiderealTime(epoch)
 
     # Signal models for each detector.
-    signal_models = [misc.SignalModel(mass1, mass2, misc.get_noise_psd_func(ifo), order=order)
+    signal_models = [timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), order=order)
         for mass1, mass2, ifo in zip(mass1s, mass2s, ifos)]
 
     # Get SNR=1 horizon distances for each detector.

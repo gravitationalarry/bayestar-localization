@@ -1,362 +1,227 @@
+# -*- coding: utf-8
+#
+# Copyright (C) 2012  Leo Singer
+#
+# This program is free software: you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation, either version 3 of the License, or
+# (at your option) any later version.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#
 from __future__ import division
 """
-Functions related to timing estimation
+Functions for predicting timing accuracy of matched filters.
 """
 __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 
-# General imports
 import numpy as np
-import math
-from scipy import optimize
-
-# LAL imports
-import lal
-import lalsimulation
-from pylal import spawaveform
-
-# My own imports
-from bayestar_localization import misc
+import lal, lalsimulation
+from scipy import interpolate
+from scipy import linalg
+from scipy import special
 
 
-# Useful sample units
-unitInverseHertz = lal.Unit()
-unitInverseSqrtHertz = lal.Unit()
-lal.UnitInvert(unitInverseHertz, lal.lalHertzUnit)
-lal.UnitSqrt(unitInverseSqrtHertz, unitInverseHertz)
+def mchirp(m1=1.4, m2=1.4):
+    """Find chirp mass from component masses."""
+    return (m1 * m2) ** 0.6 * (m1 + m2) ** -0.2
 
 
-def ceil_pow_2(number):
-    """Return the least integer power of 2 that is greater than or equal to number."""
-    # frexp splits floats into mantissa and exponent, ldexp does the opposite.
-    # For positive numbers, mantissa is in [0.5, 1.).
-    mantissa, exponent = math.frexp(number)
-    return math.ldexp(
-        1 if mantissa >= 0 else float('nan'),
-        exponent - 1 if mantissa == 0.5 else exponent
-    )
+def get_f_lso(mass1, mass2):
+    """Calculate the GW frequency during the last stable orbit of a compact binary."""
+    return 1 / (6 ** 1.5 * np.pi * (mass1 + mass2) * lal.LAL_MTSUN_SI)
 
 
-def fftfilt(b, x):
-    """Apply the FIR filter with coefficients b to the signal x, as if the filter's
-    state is initially all zeros. The output has the same length as x."""
-
-    # Zero-pad by at least (len(b) - 1).
-    nfft = int(ceil_pow_2(len(x) + len(b) - 1))
-
-    # Create FFT plans.
-    forwardplan = lal.CreateForwardCOMPLEX16FFTPlan(nfft, 0)
-    reverseplan = lal.CreateReverseCOMPLEX16FFTPlan(nfft, 0)
-
-    # Create temporary workspaces.
-    workspace1 = lal.CreateCOMPLEX16Vector(nfft)
-    workspace2 = lal.CreateCOMPLEX16Vector(nfft)
-    workspace3 = lal.CreateCOMPLEX16Vector(nfft)
-
-    workspace1.data[:len(x)] = x
-    workspace1.data[len(x):] = 0
-    lal.COMPLEX16VectorFFT(workspace2, workspace1, forwardplan)
-    workspace1.data[:len(b)] = b
-    workspace1.data[len(b):] = 0
-    lal.COMPLEX16VectorFFT(workspace3, workspace1, forwardplan)
-    workspace2.data *= workspace3.data
-    lal.COMPLEX16VectorFFT(workspace1, workspace2, reverseplan)
-
-    # Return result with zero-padding stripped.
-    return workspace1.data[:len(x)] / nfft
-
-
-def abscissa(series):
-    """Produce the independent variable for a lal TimeSeries or FrequencySeries."""
-    try:
-        delta = series.deltaT
-        x0 = float(series.epoch)
-    except AttributeError:
-        delta = series.deltaF
-        x0 = series.f0
-    return x0 + delta * np.arange(len(series.data.data))
-
-
-def colored_noise(epoch, duration, sample_rate, psd):
-    data_length = duration * sample_rate
-    plan = lal.CreateReverseREAL8FFTPlan(data_length, 0)
-    x = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(0), 0, 0,
-        lal.lalDimensionlessUnit, data_length)
-    xf = lal.CreateCOMPLEX16FrequencySeries(None, epoch, 0, 1 / duration,
-        lal.lalDimensionlessUnit, data_length // 2 + 1)
-    white_noise = (np.random.randn(len(xf.data.data)) + np.random.randn(len(xf.data.data)) * 1j) / np.sqrt(2)
-    xf.data.data = white_noise * np.sqrt(psd.data.data) / np.sqrt(2 * psd.deltaF)
-    xf.data.data[0] = 0
-    lal.REAL8FreqTimeFFT(x, xf, plan)
-    x.epoch = epoch
-    x.sampleUnits = lal.lalStrainUnit
-    return x
-
-
-def add_quadrature_phase(rseries):
-    rseries_len = len(rseries.data.data)
-    cseries = lal.CreateCOMPLEX16FrequencySeries(rseries.name, rseries.epoch,
-        rseries.f0 - rseries.deltaF * (rseries_len - 1), rseries.deltaF,
-        rseries.sampleUnits, 2 * (rseries_len - 1))
-    cseries.data.data[:rseries_len] = 0
-    cseries.data.data[rseries_len:] = 2 * rseries.data.data[1:-1]
-    return cseries
-
-
-def matched_filter_real_fd(template, psd):
-    fdfilter = lal.CreateCOMPLEX16FrequencySeries(template.name, template.epoch,
-        template.f0, template.deltaF, template.sampleUnits, len(template.data.data))
-    fdfilter.data.data = template.data.data
-    lal.WhitenCOMPLEX16FrequencySeries(fdfilter, psd)
-    fdfilter.data.data /= np.sqrt(np.sum(np.abs(fdfilter.data.data)**2 * fdfilter.deltaF / 2))
-    lal.WhitenCOMPLEX16FrequencySeries(fdfilter, psd)
-    return fdfilter
-
-
-def matched_filter_spa(template, psd):
-    """Create a complex matched filter kernel from a stationary phase approximation
-    template and a PSD."""
-    fdfilter = matched_filter_real_fd(template, psd)
-    fdfilter2 = add_quadrature_phase(fdfilter)
-    tdfilter = lal.CreateCOMPLEX16TimeSeries(None, lal.LIGOTimeGPS(0), 0, 0,
-        lal.lalDimensionlessUnit, len(fdfilter2.data.data))
-    plan = lal.CreateReverseCOMPLEX16FFTPlan(len(fdfilter2.data.data), 0)
-    lal.COMPLEX16FreqTimeFFT(tdfilter, fdfilter2, plan)
-    return tdfilter
-
-
-def matched_filter_real(template, psd):
-    fdfilter = matched_filter_real_fd(template, psd)
-    tdfilter = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(0), 0, 0,
-        lal.lalDimensionlessUnit, 2 * (len(fdfilter.data.data) - 1))
-    plan = lal.CreateReverseREAL8FFTPlan(len(tdfilter.data.data), 0)
-    lal.REAL8FreqTimeFFT(tdfilter, fdfilter, plan)
-    return tdfilter
-
-
-def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd=False):
-    template_length = sample_rate * template_duration
-    if fd:
-        f_lso = misc.get_f_lso(mass1, mass2)
-        zf = lal.CreateCOMPLEX16FrequencySeries(None,
-            lal.LIGOTimeGPS(-template_duration), 0,
-            1 / template_duration, lal.lalDimensionlessUnit,
-            template_length // 2 + 1)
-        zz = np.empty(zf.data.data.shape, dtype=zf.data.data.dtype)
-        spawaveform.waveform(mass1, mass2, 7,
-            1 / template_duration, 1 / sample_rate, f_low, f_lso, zz)
-        zf.data.data = zz
-
-        # Generate over-whitened template
-        psd = lal.CreateREAL8FrequencySeries(None, zf.epoch, zf.f0, zf.deltaF,
-            lal.lalDimensionlessUnit, len(zf.data.data))
-        psd.data.data = S(abscissa(psd))
-        zW = matched_filter_spa(zf, psd)
+def get_noise_psd_func(ifo):
+    """Find a function that describes the given interferometer's noise PSD."""
+    if ifo in ("H1", "H2", "L1", "I1"):
+        func = lalsimulation.SimNoisePSDaLIGOZeroDetHighPower
+    elif ifo == "V1":
+        func = lalsimulation.SimNoisePSDAdvVirgo
+    elif ifo == "K1":
+        func = lalsimulation.SimNoisePSDKAGRA
     else:
-        hplus, hcross = lalsimulation.SimInspiralChooseTDWaveform(
-            0, 1 / sample_rate,
+        raise ValueError("Unknown interferometer: %s", ifo)
+    return func
+
+
+def interpolate_psd(f, S):
+    """Create a (linear in log-log) interpolating function for a discretely
+    sampled power spectrum S(f)."""
+    func = interpolate.interp1d(np.log(f), np.log(S))
+    return (lambda f: np.exp(func(np.log(f))))
+
+
+class SignalModel(object):
+    """Class to speed up computation of signal/noise-weighted integrals and
+    Barankin and Cramer-Rao lower bounds on time and phase estimation."""
+
+    def __init__(self, mass1, mass2, S, order=7, f_low=10):
+        """Create a TaylorF2 signal model with the given masses, PSD function
+        S(f), PN amplitude order, and low-frequency cutoff."""
+
+        # Integration step in Hz.
+        df = 1
+        self.dw = 2 * np.pi * df
+
+        # Frequency-domain post-Newtonian inspiral waveform.
+        h = lalsimulation.SimInspiralTaylorF2(0, df,
             mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
-            0, 0, 0, 0, 0, 0,
-            f_low, float('inf'),
-            1e6 * lal.LAL_PC_SI,
-            0, 0, 0,
-            None, None,
-            lalsimulation.LAL_PNORDER_THREE,
-            lalsimulation.LAL_PNORDER_THREE_POINT_FIVE,
-            lalsimulation.TaylorT4)
+            f_low, 1e6 * lal.LAL_PC_SI, 0, order)
 
-        ht = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(-template_duration), hplus.f0, hplus.deltaT, hplus.sampleUnits, template_length)
-        hf = lal.CreateCOMPLEX16FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 0, lal.lalDimensionlessUnit, template_length // 2 + 1)
-        plan = lal.CreateForwardREAL8FFTPlan(template_length, 0)
+        # Find indices of first and last nonzero samples.
+        nonzero = np.nonzero(h.data.data)[0]
+        first_nonzero = nonzero[0]
+        last_nonzero = nonzero[-1]
 
-        ht.data.data[:-len(hplus.data.data)] = 0
-        ht.data.data[-len(hplus.data.data):] = hplus.data.data
-        lal.REAL8TimeFreqFFT(hf, ht, plan)
+        # Frequency sample points
+        f = h.f0 + h.deltaF * np.arange(first_nonzero, last_nonzero + 1)
+        self.w = 2 * np.pi * f
 
-        psd = lal.CreateREAL8FrequencySeries(None, hf.epoch, hf.f0, hf.deltaF,
-            lal.lalDimensionlessUnit, len(hf.data.data))
-        psd.data.data = S(abscissa(psd))
+        # Throw away leading and trailing zeros.
+        h = h.data.data[first_nonzero:last_nonzero + 1]
 
-        zWreal = matched_filter_real(hf, psd)
+        # Noise PSD function.
+        S = [S(ff) for ff in f]
 
-        ht.data.data[:-len(hcross.data.data)] = 0
-        ht.data.data[-len(hcross.data.data):] = hcross.data.data
+        self.denom_integrand = 4 / (2 * np.pi) * (np.square(h.real) + np.square(h.imag)) / S
+        self.den = np.trapz(self.denom_integrand, dx=self.dw)
 
-        lal.REAL8TimeFreqFFT(hf, ht, plan)
-        zWimag = matched_filter_real(hf, psd)
+    def get_horizon_distance(self, snr_thresh=1):
+        return np.sqrt(self.den) / snr_thresh
 
-        zW = lal.CreateCOMPLEX16TimeSeries(None, zWreal.epoch, zWreal.f0, zWreal.deltaT, zWreal.sampleUnits, len(zWreal.data.data))
-        zW.data.data = zWreal.data.data + zWimag.data.data * 1j
-    return zW.data.data[::-1].conj() * 4 / sample_rate
+    def get_sn_average(self, func):
+        """Get the average of a function of angular frequency, weighted by the
+        signal to noise per unit angular frequency."""
+        return np.trapz(func(self.w) * self.denom_integrand, dx=self.dw) / self.den
 
+    def get_sn_moment(self, power):
+        """Get the average of angular frequency to the given power, weighted by
+        the signal to noise per unit frequency."""
+        return self.get_sn_average(lambda w: w**power)
 
-def abs2(y):
-    """Return the |z|^2 for a complex number z."""
-    return np.square(y.real) + np.square(y.imag)
+    def get_crb(self, snr):
+        """Get the Cramer-Rao bound, or inverse Fisher information matrix,
+        describing the phase and time estimation covariance."""
+        w1 = self.get_sn_moment(1)
+        w2 = self.get_sn_moment(2)
+        I = np.asarray(((1, -w1), (-w1, w2)))
+        return linalg.inv(I) / np.square(snr)
 
+    def get_brb(self, snr):
+        """Get the Barankin bound on the phase and time estimation covariance."""
 
-#
-# Lanczos interpolation
-#
+        # Mean-square angular frequency.
+        w1 = self.get_sn_moment(1)
+        w2 = self.get_sn_moment(2)
 
+        # FIXME: stray factor of pi from somewhere?
+        snr = snr / np.pi
 
-def lanczos(t, a):
-    """The Lanczos kernel."""
-    return np.sinc(t) * np.sinc(t / a)
+        # Fisher information (factor of snr**2 kept separate)
+        snr2 = np.square(snr)
+        Lambda = np.asmatrix([[1, -w1], [-w1, w2]])
 
+        # Test values in S/N, phase, and time.
+        dphi = np.pi / 9
+        dtau = np.pi / 4 / np.sqrt(w2)
+        n = 8
+        i = np.arange(1, 2 * n + 1)
 
-def lanczos_interpolant(t, y):
-    """An interpolant constructed by convolution of the Lanczos kernel with
-    a set of discrete samples at unit intervals."""
-    a = len(y) // 2
-    return sum(lanczos(t - i + a, a) * yi for i, yi in enumerate(y))
+        sinw_moments = np.concatenate(([0], [self.get_sn_average(lambda w: np.sin(w * ii * dtau)) for ii in i]))
+        cosw_moments = np.concatenate(([1], [self.get_sn_average(lambda w: np.cos(w * ii * dtau)) for ii in i]))
+        wsinw_moments = np.concatenate(([0], [self.get_sn_average(lambda w: w * np.sin(w * ii * dtau)) for ii in i]))
+        wcosw_moments = np.concatenate(([w1], [self.get_sn_average(lambda w: w * np.cos(w * ii * dtau)) for ii in i]))
 
+        i = np.concatenate((np.arange(-n, 0), np.arange(1, n + 1)))
+        iphi, itau = np.meshgrid(i, i)
+        iphi = np.atleast_2d(iphi.flatten())
+        itau = np.atleast_2d(itau.flatten())
 
-def lanczos_interpolant_utility_func(t, y):
-    """Utility function for Lanczos interpolation."""
-    return -abs2(lanczos_interpolant(t, y))
+        A1 = (np.sin(iphi * dphi) * cosw_moments[np.abs(itau)]
+            - np.cos(iphi * dphi) * np.sign(itau) * sinw_moments[np.abs(itau)])
+        A2 = (-np.sin(iphi * dphi) * wcosw_moments[np.abs(itau)]
+            + np.cos(iphi * dphi) * np.sign(itau) * wsinw_moments[np.abs(itau)])
+        A = np.asmatrix(np.vstack((A1, A2)))
 
+        # Create test points at all possible combinations of test values.
+        Phi = np.asmatrix(np.vstack((iphi * dphi, itau * dtau)))
 
-def interpolate_max_lanczos(imax, y, window_length):
-    """Find the time and maximum absolute value of a time series by Lanczos interpolation."""
-    yi = y[imax-window_length:imax+window_length+1]
-    tmax = optimize.fminbound(lanczos_interpolant_utility_func,
-        -1., 1., (yi,), xtol=1e-5)
-    tmax = np.asscalar(tmax)
-    ymax = np.asscalar(lanczos_interpolant(tmax, yi))
-    return imax + tmax, ymax
+        iphi, kphi = np.meshgrid(iphi.flatten(), iphi.flatten())
+        itau, ktau = np.meshgrid(itau.flatten(), itau.flatten())
 
+        B = np.asmatrix(np.exp(snr2 * (1
+            + np.cos((iphi - kphi) * dphi) * cosw_moments[np.abs(itau - ktau)]
+            + np.sin((iphi - kphi) * dphi) * np.sign(itau - ktau) * sinw_moments[np.abs(itau - ktau)]
+            - np.cos(iphi * dphi) * cosw_moments[np.abs(itau)]
+            - np.sin(iphi * dphi) * np.sign(itau) * sinw_moments[np.abs(itau)]
+            - np.cos(kphi * dphi) * cosw_moments[np.abs(ktau)]
+            - np.sin(kphi * dphi) * np.sign(ktau) * sinw_moments[np.abs(ktau)])))
 
-#
-# Catmull-Rom spline interpolation
-#
+        LambdaInvA = np.asmatrix(linalg.solve(Lambda, A, sym_pos=True))
+        Y = Phi - LambdaInvA
+        Delta = B - snr2 * A.T * LambdaInvA
+        x = np.asmatrix(linalg.solve(Delta, Y.T))
+        BRB = Lambda.I / snr2 + Y * x
 
+        # FIXME: stray factor of pi from somewhere?
+        BRB /= np.square(np.pi)
 
-def poly_catmull_rom(y):
-    return np.poly1d([
-        -0.5 * y[0] + 1.5 * y[1] - 1.5 * y[2] + 0.5 * y[3],
-        y[0] - 2.5 * y[1] + 2 * y[2] - 0.5 * y[3],
-        -0.5 * y[0] + 0.5 * y[2],
-        y[1]
-    ])
+        return BRB
 
+    def get_cov(self, snr):
+        """Get the Barankin bound if snr < 20, or the Cramer-Rao bound otherwise."""
+        if snr < 20:
+            return self.get_brb(snr)
+        else:
+            return self.get_crb(snr)
 
-def interpolate_max_catmull_rom_even(y):
+    # FIXME: np.vectorize doesn't work on unbound instance methods. The excluded
+    # keyword, added in Numpy 1.7, could be used here to exclude the zeroth
+    # argument, self.
+    def __get_brb_toa_uncert(self, snr):
+        return np.sqrt(self.get_brb(snr)[1, 1])
+    def get_brb_toa_uncert(self, snr):
+        return np.vectorize(self.__get_brb_toa_uncert)(snr)
 
-    # Construct Catmull-Rom interpolating polynomials for real and imaginary parts
-    poly_re = poly_catmull_rom(y.real)
-    poly_im = poly_catmull_rom(y.imag)
+    # FIXME: np.vectorize doesn't work on unbound instance methods. The excluded
+    # keyword, added in Numpy 1.7, could be used here to exclude the zeroth
+    # argument, self.
+    def __get_crb_toa_uncert(self, snr):
+        return np.sqrt(self.get_crb(snr)[1, 1])
+    def get_crb_toa_uncert(self, snr):
+        return np.vectorize(self.__get_crb_toa_uncert)(snr)
 
-    # Find the roots of d(|y|^2)/dt as approximated
-    roots = (poly_re * poly_re.deriv() + poly_im * poly_im.deriv()).r
-
-    # Find which of the two matched interior points has a greater magnitude
-    t_max = 0.
-    y_max = y[1]
-    y_max_abs2 = abs2(y_max)
-
-    new_t_max = 1.
-    new_y_max = y[2]
-    new_y_max_abs2 = abs2(new_y_max)
-
-    if new_y_max_abs2 > y_max_abs2:
-        t_max = new_t_max
-        y_max = new_y_max
-        y_max_abs2 = new_y_max_abs2
-
-    # Find any real root in (0, 1) that has a magnitude greater than the greatest endpoint
-    for root in roots:
-        if np.isreal(root) and 0 < root < 1:
-            new_t_max = root
-            new_y_max = poly_re(new_t_max) + poly_im(new_t_max) * 1j
-            new_y_max_abs2 = abs2(new_y_max)
-            if new_y_max_abs2 > y_max_abs2:
-                t_max = new_t_max
-                y_max = new_y_max
-                y_max_abs2 = new_y_max_abs2
-
-    # Done
-    return t_max, y_max
-
-
-def interpolate_max_catmull_rom(imax, y, window_length):
-    t_max, y_max = interpolate_max_catmull_rom_even(y[imax - 2:imax + 2])
-    y_max_abs2 = abs2(y_max)
-    t_max = t_max - 1
-
-    new_t_max, new_y_max = interpolate_max_catmull_rom_even(y[imax - 1:imax + 3])
-    new_y_max_abs2 = abs2(new_y_max)
-
-    if new_y_max_abs2 > y_max_abs2:
-        t_max = new_t_max
-        y_max = new_y_max
-        y_max_abs2 = new_y_max_abs2
-
-    return imax + t_max, y_max
+    def get_toa_uncert(self, snr):
+        """Get timing uncertainty for a given signal to noise ratio. Use the
+        Barankin bound for snr < 20, and the Cramer-Rao bound for snr >= 20."""
+        return np.piecewise(snr, [snr < 20],
+            [self.get_brb_toa_uncert, self.get_crb_toa_uncert])
 
 
-#
-# Quadratic fit
-#
-
-
-def interpolate_max_quadratic_fit(imax, y, window_length):
-    """Quadratic fit to absolute value of y. Note that this one does not alter the value at the maximum."""
-
-    poly = np.polyfit(
-        np.arange(-window_length, window_length + 1.),
-        np.abs(y[imax - window_length:imax + window_length + 1]),
-        2)
-
-    # Find which of the two matched interior points has a greater magnitude
-    t_max = -1.
-    y_max = y[imax - 1]
-    y_max_abs2 = abs2(y_max)
-
-    new_t_max = 1.
-    new_y_max = y[imax + 1]
-    new_y_max_abs2 = abs2(new_y_max)
-
-    if new_y_max_abs2 > y_max_abs2:
-        t_max = new_t_max
-        y_max = new_y_max
-        y_max_abs2 = new_y_max_abs2
-
-    # Determine if the global extremum of the polynomial is a local maximum in (-1, 1)
-    A, B, C = poly
-    new_t_max = -0.5 * B / A
-    new_y_max_abs2 = np.square(np.polyval(poly, new_t_max))
-    if -1 < new_t_max < 1 and new_y_max_abs2 > y_max_abs2:
-        t_max = new_t_max
-
-    return imax + t_max, y[imax]
-
-
-#
-# Nearest neighbor interpolation
-#
-
-
-def interpolate_max_nearest_neighbor(imax, y, window_length):
-    """Trivial, nearest-neighbor interpolation"""
-    return imax, y[imax]
-
-
-#
-# Set default interpolation scheme
-#
-
-
-def interpolate_max(imax, y, window_length, method='catmull-rom'):
-    if method == 'catmull-rom':
-        func = interpolate_max_catmull_rom
-    elif method == 'lanczos':
-        func = interpolate_max_lanczos
-    elif method == 'nearest-neighbor':
-        func = interpolate_max_nearest_neighbor
-    elif method == 'quadratic-fit':
-        func = interpolate_max_quadratic_fit
-    else:
-        raise ValueError('unrecognized method: %s' % method)
-    return func(imax, y, window_length)
-
+if __name__ == '__main__':
+    # Demo; execute with "python -m bayestar_localization.timing"
+    from matplotlib import pyplot as plt
+    mass_pairs = ((1.4, 1.4), (1.4, 10.), (10., 10.))
+    colors = 'rgb'
+    plt.figure(figsize=(6, 6))
+    ax = plt.subplot(111, aspect=1)
+    for color, mass_pair in zip(colors, mass_pairs):
+        signal_model = SignalModel(*mass_pair, S=get_noise_psd_func("H1"), f_low=30)
+        snr = np.logspace(0, 2, 20)
+        plt.loglog(snr, signal_model.get_toa_uncert(snr), '-o', mew=2, lw=2, mfc='none', mec=color, color=color)
+        plt.loglog(snr, signal_model.get_crb_toa_uncert(snr), '--', color=color)
+        plt.annotate(ur"%g—%g $M_\odot$" % mass_pair, (15, signal_model.get_crb_toa_uncert(15)), rotation=-45)
+    plt.xlabel("S/N")
+    plt.ylabel("TOA uncertainty (s)")
+    plt.grid(which='minor')
+    plt.grid(which='major', lw=1)
+    plt.ylim(1e-5, 1e-3)
+    plt.savefig('toa_uncert.pdf')

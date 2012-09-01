@@ -98,8 +98,8 @@ import glue.lal
 import lal, lalsimulation
 
 # BAYESTAR imports.
-from bayestar_localization import misc
 from bayestar_localization import timing
+from bayestar_localization import filter
 
 # Other imports.
 import numpy as np
@@ -175,7 +175,7 @@ class psdfunc(object):
         else:
             return 0.
 
-psdfuncs = dict((ifo, np.vectorize(psdfunc(misc.get_noise_psd_func(ifo)))) for ifo in opts.detector)
+psdfuncs = dict((ifo, np.vectorize(psdfunc(timing.get_noise_psd_func(ifo)))) for ifo in opts.detector)
 
 # Generate templates for each unique set of intrinsic parameters
 inj_params = set((sim.mass1, sim.mass2, sim.f_lower) for sim in sim_inspiral_table)
@@ -185,15 +185,15 @@ templates = dict(
         dict(
             (
                 ifo,
-                timing.generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd=opts.fd)
+                filter.generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd=opts.fd)
             ) for ifo, S in psdfuncs.iteritems()
         )
     ) for mass1, mass2, f_low in inj_params)
 
 # Generate PSDs for data coloring
 def generate_psd(S):
-    psd = lal.CreateREAL8FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 1 / data_duration, timing.unitInverseHertz, data_length // 2 + 1)
-    psd.data.data = S(timing.abscissa(psd))
+    psd = lal.CreateREAL8FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 1 / data_duration, filter.unitInverseHertz, data_length // 2 + 1)
+    psd.data.data = S(filter.abscissa(psd))
     return psd
 psds = dict((ifo, generate_psd(S)) for ifo, S in psdfuncs.iteritems())
 
@@ -219,7 +219,7 @@ for sim_inspiral in sim_inspiral_table:
 
     for ifo in opts.detector:
         # Generate colored noise
-        x = timing.colored_noise(epoch, data_duration, sample_rate, psds[ifo])
+        x = filter.colored_noise(epoch, data_duration, sample_rate, psds[ifo])
 
         # Generate injection h(t) time series
         detector = lalsimulation.InstrumentNameToLALDetector(ifo)
@@ -239,26 +239,26 @@ for sim_inspiral in sim_inspiral_table:
         h = lalsimulation.SimDetectorStrainREAL8TimeSeries(hplus, hcross,
             ra, dec, psi, detector)
 
-        horizon = misc.SignalModel(mass1, mass2, misc.get_noise_psd_func(ifo), f_low=f_low).get_horizon_distance()
+        horizon = timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), f_low=f_low).get_horizon_distance()
 
         # Add injection to data
         lal.AddREAL8TimeSeries(x, h)
 
         # Apply matched filter
         zW = templates[(mass1, mass2, f_low)][ifo]
-        rho = timing.fftfilt(zW, x.data.data)[len(zW)-1:]
+        rho = filter.fftfilt(zW, x.data.data)[len(zW)-1:]
 
         # Find maximum index
         i0 = long(round(-(template_duration + float(x.epoch - end_time)) * sample_rate))
         di = long(round(sample_rate * opts.trigger_window))
-        imax = np.argmax(timing.abs2(rho[i0 - di:i0 + di])) + i0 - di
+        imax = np.argmax(filter.abs2(rho[i0 - di:i0 + di])) + i0 - di
 
         # If SNR < threshold, then the injection is not found. Skip it.
         if abs(rho[imax]) < opts.snr_threshold:
             continue
 
         # Interpolate time series
-        imax, rhomax = timing.interpolate_max(imax, rho, opts.interp_window, method=opts.interp_method)
+        imax, rhomax = filter.interpolate_max(imax, rho, opts.interp_window, method=opts.interp_method)
         tmax = x.epoch + (imax / sample_rate + template_duration)
 
         # Add SnglInspiral entry.

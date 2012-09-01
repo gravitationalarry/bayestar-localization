@@ -86,7 +86,7 @@ import glue.lal
 import lal, lalsimulation
 
 # BAYESTAR imports.
-from bayestar_localization import misc
+from bayestar_localization import timing
 
 # Other imports.
 import numpy as np
@@ -177,7 +177,7 @@ for sim_inspiral in sim_inspiral_table:
     M *= ((cospsi, sinpsi), (-sinpsi, cospsi))
 
     # Signal models for each detector.
-    signal_models = [misc.SignalModel(m1, m2, misc.get_noise_psd_func(ifo), order=order, f_low=f_low)
+    signal_models = [timing.SignalModel(m1, m2, timing.get_noise_psd_func(ifo), order=order, f_low=f_low)
         for ifo in opts.detector]
 
     # Get SNR=1 horizon distances for each detector.
