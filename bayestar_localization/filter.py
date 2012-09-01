@@ -94,18 +94,41 @@ def abscissa(series):
 
 
 def colored_noise(epoch, duration, sample_rate, psd):
+    """Generate a REAL8TimeSeries containing duration seconds of colored
+    Gaussian noise at the given sample rate, with the start time given by epoch.
+    psd should be an instance of REAL8FrequencySeries containing a discretely
+    sample power spectrum with f0=0, deltaF=1/duration, and a length of
+    ((duration * sample_rate) // 2 + 1) samples.
+    """
     data_length = duration * sample_rate
     plan = lal.CreateReverseREAL8FFTPlan(data_length, 0)
     x = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(0), 0, 0,
         lal.lalDimensionlessUnit, data_length)
     xf = lal.CreateCOMPLEX16FrequencySeries(None, epoch, 0, 1 / duration,
         lal.lalDimensionlessUnit, data_length // 2 + 1)
-    white_noise = (np.random.randn(len(xf.data.data)) + np.random.randn(len(xf.data.data)) * 1j) / np.sqrt(2)
+    white_noise = (np.random.randn(len(xf.data.data)) + np.random.randn(len(xf.data.data)) * 1j)
+
+    # On line 1288 of lal's AverageSpectrum.c, in the code comments for
+    # XLALWhitenCOMPLEX8FrequencySeries, it says that according to the LAL
+    # conventions a whitened frequency series should consist of bins whose
+    # real and imaginary parts each have a variance of 1/2.
+    white_noise /= np.sqrt(2)
+
+    # The factor of sqrt(2 * psd.deltaF) comes from the value of 'norm' on
+    # line 1362 of AverageSpectrum.c.
     xf.data.data = white_noise * np.sqrt(psd.data.data / (2 * psd.deltaF))
+
+    # Detrend the data: no DC component.
     xf.data.data[0] = 0
+
+    # Return to time domain.
     lal.REAL8FreqTimeFFT(x, xf, plan)
+
+    # Copy over metadata.
     x.epoch = epoch
     x.sampleUnits = lal.lalStrainUnit
+
+    # Done.
     return x
 
 
