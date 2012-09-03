@@ -63,25 +63,39 @@ class SignalModel(object):
     """Class to speed up computation of signal/noise-weighted integrals and
     Barankin and Cramér-Rao lower bounds on time and phase estimation."""
 
-    def __init__(self, mass1, mass2, S, order=-1, f_low=10):
+    def __init__(self, mass1, mass2, S, order=-1, f_low=10, fd=False):
         """Create a TaylorF2 signal model with the given masses, PSD function
         S(f), PN amplitude order, and low-frequency cutoff."""
 
-        # Integration step in Hz.
-        df = 1
-        self.dw = 2 * np.pi * df
+        if fd:
+            # Frequency-domain post-Newtonian inspiral waveform.
+            h = lalsimulation.SimInspiralTaylorF2(0, 1,
+                mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
+                f_low, 1e6 * lal.LAL_PC_SI, 0, order)
 
-        # Frequency-domain post-Newtonian inspiral waveform.
-        h = lalsimulation.SimInspiralTaylorF2(0, df,
-            mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
-            f_low, 1e6 * lal.LAL_PC_SI, 0, order)
+            # Find indices of first and last nonzero samples.
+            nonzero = np.nonzero(h.data.data)[0]
+            first_nonzero = nonzero[0]
+            last_nonzero = nonzero[-1]
+        else:
+            # Time-domain post-Newtonian inspiral waveform.
+            hplus, hcross = lalsimulation.SimInspiralTaylorT4PN(0, 1 / 4096,
+                mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
+                f_low, 1e6 * lal.LAL_PC_SI, 0, order)
 
-        # Find indices of first and last nonzero samples.
-        nonzero = np.nonzero(h.data.data)[0]
-        first_nonzero = nonzero[0]
-        last_nonzero = nonzero[-1]
+            hplus.data.data += hcross.data.data
+            hplus.data.data /= np.sqrt(2)
+
+            h = lal.CreateCOMPLEX16FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 0, lal.lalDimensionlessUnit, len(hplus.data.data) // 2 + 1)
+            plan = lal.CreateForwardREAL8FFTPlan(len(hplus.data.data), 0)
+            lal.REAL8TimeFreqFFT(h, hplus, plan)
+
+            f = h.f0 + len(h.data.data) * h.deltaF
+            first_nonzero = long(np.floor((f_low - h.f0) / h.deltaF))
+            last_nonzero = long(np.ceil((2048 - h.f0) / h.deltaF))
 
         # Frequency sample points
+        self.dw = 2 * np.pi * h.deltaF
         f = h.f0 + h.deltaF * np.arange(first_nonzero, last_nonzero + 1)
         self.w = 2 * np.pi * f
 
