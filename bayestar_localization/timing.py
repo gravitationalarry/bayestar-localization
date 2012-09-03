@@ -63,7 +63,7 @@ class SignalModel(object):
     """Class to speed up computation of signal/noise-weighted integrals and
     Barankin and Cramér-Rao lower bounds on time and phase estimation."""
 
-    def __init__(self, mass1, mass2, S, order=7, f_low=10):
+    def __init__(self, mass1, mass2, S, order=-1, f_low=10):
         """Create a TaylorF2 signal model with the given masses, PSD function
         S(f), PN amplitude order, and low-frequency cutoff."""
 
