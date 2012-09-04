@@ -93,6 +93,7 @@ class SignalModel(object):
             f = h.f0 + len(h.data.data) * h.deltaF
             first_nonzero = long(np.floor((f_low - h.f0) / h.deltaF))
             last_nonzero = long(np.ceil((2048 - h.f0) / h.deltaF))
+            last_nonzero = min(last_nonzero, len(h.data.data) - 1)
 
         # Frequency sample points
         self.dw = 2 * np.pi * h.deltaF
