@@ -80,6 +80,7 @@ else:
 
 # Python standard library imports.
 import os
+import warnings
 
 # LIGO-LW XML imports.
 from glue.ligolw import ligolw
@@ -213,7 +214,11 @@ for sim_inspiral in sim_inspiral_table:
     end_time = lal.LIGOTimeGPS(sim_inspiral.geocent_end_time, sim_inspiral.geocent_end_time_ns)
     epoch = end_time - 80 # GPS start time of data
     gmst = lal.GreenwichMeanSiderealTime(end_time)
-    order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
+    try:
+        order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
+    except RuntimeError:
+        warnings.warn('could not determine PN order for injection; using highest order available')
+        order = -1
 
     sngl_inspirals = []
 
@@ -231,8 +236,8 @@ for sim_inspiral in sim_inspiral_table:
             DL * 1e6 * lal.LAL_PC_SI,
             inc, 0, 0,
             None, None,
-            lalsimulation.LAL_PNORDER_THREE,
-            lalsimulation.LAL_PNORDER_THREE_POINT_FIVE,
+            order,
+            order,
             lalsimulation.TaylorT4)
         hplus.epoch += end_time
         hcross.epoch += end_time

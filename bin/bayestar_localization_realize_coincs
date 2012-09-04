@@ -68,6 +68,7 @@ else:
 
 # Python standard library imports.
 import os
+import warnings
 
 # LIGO-LW XML imports.
 from glue.ligolw import ligolw
@@ -161,7 +162,11 @@ for sim_inspiral in sim_inspiral_table:
     psi = sim_inspiral.polarization
     epoch = lal.LIGOTimeGPS(sim_inspiral.geocent_end_time, sim_inspiral.geocent_end_time_ns)
     gmst = lal.GreenwichMeanSiderealTime(epoch)
-    order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
+    try:
+        order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
+    except RuntimeError:
+        warnings.warn('could not determine PN order for injection; using highest order available')
+        order = -1
 
     # Pre-evaluate some trigonometric functions that we will need.
     cosinc = np.cos(inc)
