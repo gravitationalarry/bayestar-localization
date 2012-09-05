@@ -206,7 +206,7 @@ if opts.repeat_first_injection:
 else:
     n_injections = len(sim_inspiral_table)
 
-for i_sim_inspiral in n_injections:
+for i_sim_inspiral in range(n_injections):
 
     sngl_inspirals = []
 
