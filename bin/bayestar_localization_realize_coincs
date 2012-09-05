@@ -153,7 +153,6 @@ for sim_inspiral in sim_inspiral_table:
     m1 = sim_inspiral.mass1
     m2 = sim_inspiral.mass2
     f_low = sim_inspiral.f_lower
-    f_high = 4400 / (m1 + m2)
     DL = sim_inspiral.distance
     ra = sim_inspiral.longitude
     dec = sim_inspiral.latitude
