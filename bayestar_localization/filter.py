@@ -147,7 +147,7 @@ def matched_filter_real_fd(template, psd):
         template.f0, template.deltaF, template.sampleUnits, len(template.data.data))
     fdfilter.data.data = template.data.data
     lal.WhitenCOMPLEX16FrequencySeries(fdfilter, psd)
-    fdfilter.data.data /= np.sqrt(np.sum(np.abs(fdfilter.data.data)**2 * fdfilter.deltaF / 2))
+    fdfilter.data.data /= np.sqrt(np.sum(np.abs(fdfilter.data.data)**2))
     lal.WhitenCOMPLEX16FrequencySeries(fdfilter, psd)
     return fdfilter
 
@@ -226,7 +226,7 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd
 
         zW = lal.CreateCOMPLEX16TimeSeries(None, zWreal.epoch, zWreal.f0, zWreal.deltaT, zWreal.sampleUnits, len(zWreal.data.data))
         zW.data.data = zWreal.data.data + zWimag.data.data * 1j
-    return zW.data.data[::-1].conj() * 4 / sample_rate
+    return zW.data.data[::-1].conj() * np.sqrt(2) * template_duration / sample_rate / 2
 
 
 def abs2(y):

@@ -64,7 +64,9 @@ parser = OptionParser(
         Option("--snr-threshold", type=float, default=8.,
             help="Single-detector SNR threshold (default=8)"),
         Option("--min-triggers", type=int, default=3,
-            help="Emit coincidences only when at least this many triggers are found (default=3)")
+            help="Emit coincidences only when at least this many triggers are found (default=3)"),
+        Option("-R", "--repeat-first-injection", type=int, default=None,
+            help="Instead of performing each injection once, just perform the first injection this many times.")
     ]
 )
 opts, args = parser.parse_args()
@@ -199,35 +201,41 @@ def generate_psd(S):
 psds = dict((ifo, generate_psd(S)) for ifo, S in psdfuncs.iteritems())
 
 
-for sim_inspiral in sim_inspiral_table:
+if opts.repeat_first_injection:
+    n_injections = opts.repeat_first_injection
+else:
+    n_injections = len(sim_inspiral_table)
 
-    # Unpack some values from the row in the table.
-    mass1 = sim_inspiral.mass1
-    mass2 = sim_inspiral.mass2
-    f_low = sim_inspiral.f_lower
-    DL = sim_inspiral.distance
-    ra = sim_inspiral.longitude
-    dec = sim_inspiral.latitude
-    inc = sim_inspiral.inclination
-    phi = sim_inspiral.coa_phase
-    psi = sim_inspiral.polarization
-    end_time = lal.LIGOTimeGPS(sim_inspiral.geocent_end_time, sim_inspiral.geocent_end_time_ns)
-    epoch = end_time - 80 # GPS start time of data
-    gmst = lal.GreenwichMeanSiderealTime(end_time)
-    try:
-        order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
-    except RuntimeError:
-        warnings.warn('could not determine PN order for injection; using highest order available')
-        order = -1
+for i_sim_inspiral in n_injections:
 
     sngl_inspirals = []
 
-    for ifo in opts.detector:
-        # Generate colored noise
-        x = filter.colored_noise(epoch, data_duration, sample_rate, psds[ifo])
+    if opts.repeat_first_injection:
+        sim_inspiral = sim_inspiral_table[0]
+    else:
+        sim_inspiral = sim_inspiral_table[i_sim_inspiral]
 
-        # Generate injection h(t) time series
-        detector = lalsimulation.InstrumentNameToLALDetector(ifo)
+    # Unpack some values from the row in the table.
+    if not(opts.repeat_first_injection) or i_sim_inspiral == 0:
+        mass1 = sim_inspiral.mass1
+        mass2 = sim_inspiral.mass2
+        f_low = sim_inspiral.f_lower
+        DL = sim_inspiral.distance
+        ra = sim_inspiral.longitude
+        dec = sim_inspiral.latitude
+        inc = sim_inspiral.inclination
+        phi = sim_inspiral.coa_phase
+        psi = sim_inspiral.polarization
+        end_time = lal.LIGOTimeGPS(sim_inspiral.geocent_end_time, sim_inspiral.geocent_end_time_ns)
+        epoch = end_time - 80 # GPS start time of data
+        gmst = lal.GreenwichMeanSiderealTime(end_time)
+        try:
+            order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
+        except RuntimeError:
+            warnings.warn('could not determine PN order for injection; using highest order available')
+            order = -1
+
+        # Generate injection
         hplus, hcross = lalsimulation.SimInspiralChooseTDWaveform(
             phi, 1 / sample_rate,
             mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
@@ -241,6 +249,13 @@ for sim_inspiral in sim_inspiral_table:
             lalsimulation.TaylorT4)
         hplus.epoch += end_time
         hcross.epoch += end_time
+
+    for ifo in opts.detector:
+        # Generate colored noise
+        x = filter.colored_noise(epoch, data_duration, sample_rate, psds[ifo])
+
+        # Project injection for this detector.
+        detector = lalsimulation.InstrumentNameToLALDetector(ifo)
         h = lalsimulation.SimDetectorStrainREAL8TimeSeries(hplus, hcross,
             ra, dec, psi, detector)
 
