@@ -401,8 +401,14 @@ int bayestar_sky_map_tdoa_snr(
                     const double rhotimesr2 = 0.125 * ((FpFp + FxFx) * (1 + 6*u2 + u4) + square(1 - u2) * ((FpFp - FxFx) * costwopsi + 2 * FpFx * sintwopsi));
                     const double rhotimesr = sqrt(rhotimesr2);
 
-                    A += rhotimesr2;
-                    B += rhotimesr * cabs(snrs[iifo]);
+                    /* FIXME: due to roundoff, rhotimesr2 can be very small and
+                     * negative rather than simply zero. If this happens, don't
+                     accumulate the log-likelihood terms for this dietector. */
+                    if (rhotimesr2 > 0)
+                    {
+                        A += rhotimesr2;
+                        B += rhotimesr * cabs(snrs[iifo]);
+                    }
                 }
                 A *= -0.5;
 
