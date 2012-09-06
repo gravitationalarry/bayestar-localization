@@ -60,6 +60,8 @@ opts, args = OptionParser(
             help="Low frequency cutoff (default=10)"),
         Option("--order", type=int, default=-1,
             help="Twice PN amplitude order, used for computing noise moments (default=-1, highest available)"),
+        Option("--fd", action="store_true", default=False,
+            help="Use frequency-domain waveforms for templates (default=false)"),
         Option("--min-distance", type=float, metavar="Mpc",
             help="Minimum distance of prior in megaparsecs (required)"),
         Option("--max-distance", type=float, metavar="Mpc",
@@ -218,7 +220,7 @@ for sim_coinc in coinc_table:
 
     # Time and run sky localization.
     sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals,
-        opts.order, opts.f_low, reference_frequency=opts.reference_frequency, method="toa")
+        opts.order, opts.f_low, reference_frequency=opts.reference_frequency, method="toa", fd=opts.fd)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
@@ -237,7 +239,7 @@ for sim_coinc in coinc_table:
     # Time and run sky localization.
     sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals,
         opts.order, opts.f_low, opts.min_distance, opts.max_distance, opts.prior,
-        reference_frequency=opts.reference_frequency, method="toa_snr")
+        reference_frequency=opts.reference_frequency, method="toa_snr", fd=opts.fd)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)

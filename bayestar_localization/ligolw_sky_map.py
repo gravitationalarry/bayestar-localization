@@ -33,7 +33,7 @@ def complex_from_polar(r, phi):
     return r * (np.cos(phi) + np.sin(phi) * 1j)
 
 
-def ligolw_sky_map(nside, sngl_inspirals, order, f_low, min_distance=None, max_distance=None, prior=None, method="toa_snr", reference_frequency=None):
+def ligolw_sky_map(nside, sngl_inspirals, order, f_low, min_distance=None, max_distance=None, prior=None, method="toa_snr", reference_frequency=None, fd=False):
     """Convenience function to produce a sky map from LIGO-LW rows. Note that
     min_distance and max_distance should be in Mpc."""
 
@@ -72,7 +72,7 @@ def ligolw_sky_map(nside, sngl_inspirals, order, f_low, min_distance=None, max_d
     gmst = date.XLALGreenwichMeanSiderealTime(epoch)
 
     # Signal models for each detector.
-    signal_models = [timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), order=order)
+    signal_models = [timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), order=order, fd=fd)
         for mass1, mass2, ifo in zip(mass1s, mass2s, ifos)]
 
     # Get SNR=1 horizon distances for each detector.
