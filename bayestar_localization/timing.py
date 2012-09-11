@@ -26,6 +26,7 @@ import numpy as np
 import lal, lalsimulation
 from scipy import interpolate
 from scipy import linalg
+from scipy import optimize
 from scipy import special
 
 
@@ -190,6 +191,23 @@ class SignalModel(object):
         BRB /= np.square(np.pi)
 
         return BRB
+
+    def __get_chapman_robbins_toa_uncert(self, snr):
+        """Get the Barankin bound on the phase and time estimation covariance."""
+
+        snr2 = np.square(snr)
+
+        def supremand(phi, tau):
+            return np.square(tau) / (np.exp(2 * snr2 * (1 - self.get_sn_average(lambda w: np.cos(phi - w * tau)))) - 1)
+
+        def minimand(x):
+            return -supremand(*x)
+        x0 = np.sqrt(np.diagonal(self.get_brb(snr)))
+        xopt = optimize.fmin(minimand, x0=x0)
+        return np.sqrt(supremand(*xopt))
+
+    def get_chapman_robbins_bound(self, snr):
+        return np.vectorize(self.__get_chapman_robbins_bound)(snr)
 
     def get_cov(self, snr):
         """Get the Barankin bound if snr < 20, or the Cramér-Rao bound otherwise."""
