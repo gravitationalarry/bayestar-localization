@@ -41,8 +41,8 @@ opts, args = OptionParser(
     description = __doc__,
     usage = '%prog [options] --min-distance Mpc --max-distance Mpc --prior "uniform in log distance"|"uniform in volume" [INPUT.xml[.gz]] -o OUTPUT.fits[.gz]',
     option_list = [
-        Option("--nside", "-n", type=int, default=128,
-            help="HEALPix lateral resolution (default=128)"),
+        Option("--nside", "-n", type=int, default=-1,
+            help="HEALPix lateral resolution (default=auto)"),
         Option("--f-low", type=float, default=10, metavar="Hz",
             help="Low frequency cutoff (default=10)"),
         Option("--order", type=int, default=7,
@@ -103,9 +103,9 @@ sngl_inspirals = [(sngl_inspiral for sngl_inspiral in sngl_inspiral_table
     if sngl_inspiral.event_id == event_id).next() for event_id in event_ids]
 
 # TOA+SNR sky localization
-sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals, opts.order, opts.f_low,
+sky_map, epoch, elapsed_time = ligolw_sky_map(sngl_inspirals, opts.order, opts.f_low,
     opts.min_distance, opts.max_distance, opts.prior,
-    reference_frequency=opts.reference_frequency)
+    reference_frequency=opts.reference_frequency, nside=opts.nside)
 
 # Write sky map
 io.write_skymap(opts.output, skymap=sky_map, gps=float(epoch))

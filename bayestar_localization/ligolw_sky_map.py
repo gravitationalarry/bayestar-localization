@@ -33,7 +33,7 @@ def complex_from_polar(r, phi):
     return r * (np.cos(phi) + np.sin(phi) * 1j)
 
 
-def ligolw_sky_map(nside, sngl_inspirals, order, f_low, min_distance=None, max_distance=None, prior=None, method="toa_snr", reference_frequency=None, fd=False):
+def ligolw_sky_map(sngl_inspirals, order, f_low, min_distance=None, max_distance=None, prior=None, method="toa_snr", reference_frequency=None, fd=False, nside=-1):
     """Convenience function to produce a sky map from LIGO-LW rows. Note that
     min_distance and max_distance should be in Mpc."""
 
@@ -93,9 +93,9 @@ def ligolw_sky_map(nside, sngl_inspirals, order, f_low, min_distance=None, max_d
     # Time and run sky localization.
     start_time = time.time()
     if method == "toa":
-        sky_map = bayestar_localization.sky_map_tdoa(nside, gmst, toas, s2_toas, locations)
+        sky_map = bayestar_localization.sky_map_tdoa(gmst, toas, s2_toas, locations, nside=nside)
     elif method == "toa_snr":
-        sky_map = bayestar_localization.sky_map_tdoa_snr(nside, gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance, prior)
+        sky_map = bayestar_localization.sky_map_tdoa_snr(gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance, prior, nside=nside)
     else:
         raise ValueError("Unrecognized method: %s" % method)
     end_time = time.time()

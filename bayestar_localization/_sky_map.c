@@ -22,6 +22,58 @@
 #include "bayestar_sky_map.h"
 
 
+/**
+ * Premalloced objects.
+ */
+
+
+typedef struct {
+    PyObject_HEAD
+    void *data;
+} premalloced_object;
+
+
+static void premalloced_dealloc(premalloced_object *self)
+{
+    free(self->data);
+    self->ob_type->tp_free((PyObject *) self);
+}
+
+
+static PyTypeObject premalloced_type = {
+    PyObject_HEAD_INIT(NULL)
+    0,                         /*ob_size*/
+    "premalloced",             /*tp_name*/
+    sizeof(premalloced_object),/*tp_basicsize*/
+    0,                         /*tp_itemsize*/
+    (destructor)premalloced_dealloc, /*tp_dealloc*/
+    0,                         /*tp_print*/
+    0,                         /*tp_getattr*/
+    0,                         /*tp_setattr*/
+    0,                         /*tp_compare*/
+    0,                         /*tp_repr*/
+    0,                         /*tp_as_number*/
+    0,                         /*tp_as_sequence*/
+    0,                         /*tp_as_mapping*/
+    0,                         /*tp_hash */
+    0,                         /*tp_call*/
+    0,                         /*tp_str*/
+    0,                         /*tp_getattro*/
+    0,                         /*tp_setattro*/
+    0,                         /*tp_as_buffer*/
+    Py_TPFLAGS_DEFAULT,        /*tp_flags*/
+    "Pre-malloc'd memory",     /* tp_doc */
+};
+
+
+static premalloced_object *premalloced_new(void *data)
+{
+    premalloced_object *obj = PyObject_New(premalloced_object, &premalloced_type);
+    obj->data = data;
+    return obj;
+}
+
+
 static void
 my_gsl_error (const char * reason, const char * file, int line, int gsl_errno)
 {
@@ -55,7 +107,7 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
 {
     long i;
     Py_ssize_t n;
-    long nside;
+    long nside = -1;
     long npix;
     long nifos;
     double gmst;
@@ -69,30 +121,30 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
 
     npy_intp dims[1];
     PyObject *out = NULL, *ret = NULL;
+    premalloced_object *premalloced = NULL;
     double *P;
-    int result;
     gsl_error_handler_t *old_handler;
 
     /* Names of arguments */
-    static char *keywords[] = {"nside", "gmst", "toas",
-        "toa_variances", "locations", NULL};
+    static char *keywords[] = {"gmst", "toas",
+        "toa_variances", "locations", "nside", NULL};
 
     /* Parse arguments */
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ldOOO|", keywords,
-        &nside, &gmst, &toas_obj, &toa_variances_obj, &locations_obj))
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "dOOO|l", keywords,
+        &gmst, &toas_obj, &toa_variances_obj, &locations_obj, &nside))
         goto fail;
 
-    npix = nside2npix(nside);
-    if (npix < 0)
+    if (nside == -1)
     {
-        PyErr_SetString(PyExc_ValueError, "nside must be a power of 2");
-        goto fail;
+        npix = -1;
+    } else {
+        npix = nside2npix(nside);
+        if (npix < 0)
+        {
+            PyErr_SetString(PyExc_ValueError, "nside must be a power of 2");
+            goto fail;
+        }
     }
-    dims[0] = npix;
-    out = PyArray_SimpleNew(1, dims, NPY_DOUBLE);
-    if (!out)
-        goto fail;
-    P = PyArray_DATA(out);
 
     toas_npy = AsArrayObj(toas_obj, NPY_DOUBLE, 1);
     if (!toas_npy) goto fail;
@@ -146,10 +198,20 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
     }
 
     old_handler = gsl_set_error_handler(my_gsl_error);
-    result = bayestar_sky_map_tdoa(npix, P, gmst, nifos, locations, toas, toa_variances);
+    P = bayestar_sky_map_tdoa(&npix, gmst, nifos, locations, toas, toa_variances);
     gsl_set_error_handler(old_handler);
-    if (result != GSL_SUCCESS)
+
+    if (!P)
         goto fail;
+    premalloced = premalloced_new(P);
+    if (!premalloced)
+        goto fail;
+    dims[0] = npix;
+    out = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, P);
+    if (!out)
+        goto fail;
+    PyArray_BASE(out) = (PyObject *) premalloced;
+    Py_INCREF(premalloced);
 
     ret = out;
     out = NULL;
@@ -161,6 +223,7 @@ fail:
             Py_XDECREF(locations_npy[i]);
     free(locations_npy);
     free(locations);
+    Py_XDECREF(premalloced);
     Py_XDECREF(out);
     return ret;
 };
@@ -170,7 +233,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
 {
     long i;
     Py_ssize_t n;
-    long nside;
+    long nside = -1;
     long npix;
     long nifos;
     double gmst;
@@ -192,32 +255,32 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
 
     npy_intp dims[1];
     PyObject *out = NULL, *ret = NULL;
+    premalloced_object *premalloced = NULL;
     double *P;
-    int result;
     gsl_error_handler_t *old_handler;
 
     /* Names of arguments */
-    static char *keywords[] = {"nside", "gmst", "toas", "snrs",
+    static char *keywords[] = {"gmst", "toas", "snrs",
         "toa_variances", "responses", "locations", "horizons",
-        "min_distance", "max_distance", "prior", NULL};
+        "min_distance", "max_distance", "prior", "nside", NULL};
 
     /* Parse arguments */
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "ldOOOOOOdds|", keywords,
-        &nside, &gmst, &toas_obj, &snrs_obj, &toa_variances_obj,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "dOOOOOOdds|l", keywords,
+        &gmst, &toas_obj, &snrs_obj, &toa_variances_obj,
         &responses_obj, &locations_obj, &horizons_obj,
-        &min_distance, &max_distance, &prior_str)) goto fail;
+        &min_distance, &max_distance, &prior_str, &nside)) goto fail;
 
-    npix = nside2npix(nside);
-    if (npix < 0)
+    if (nside == -1)
     {
-        PyErr_SetString(PyExc_ValueError, "nside must be a power of 2");
-        goto fail;
+        npix = -1;
+    } else {
+        npix = nside2npix(nside);
+        if (npix < 0)
+        {
+            PyErr_SetString(PyExc_ValueError, "nside must be a power of 2");
+            goto fail;
+        }
     }
-    dims[0] = npix;
-    out = PyArray_SimpleNew(1, dims, NPY_DOUBLE);
-    if (!out)
-        goto fail;
-    P = PyArray_DATA(out);
 
     toas_npy = AsArrayObj(toas_obj, NPY_DOUBLE, 1);
     if (!toas_npy) goto fail;
@@ -334,10 +397,20 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     }
 
     old_handler = gsl_set_error_handler(my_gsl_error);
-    result = bayestar_sky_map_tdoa_snr(npix, P, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons, min_distance, max_distance, prior);
+    P = bayestar_sky_map_tdoa_snr(&npix, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons, min_distance, max_distance, prior);
     gsl_set_error_handler(old_handler);
-    if (result != GSL_SUCCESS)
+
+    if (!P)
         goto fail;
+    premalloced = premalloced_new(P);
+    if (!premalloced)
+        goto fail;
+    dims[0] = npix;
+    out = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, P);
+    if (!out)
+        goto fail;
+    PyArray_BASE(out) = (PyObject *) premalloced;
+    Py_INCREF(premalloced);
 
     ret = out;
     out = NULL;
@@ -356,6 +429,7 @@ fail:
     free(locations_npy);
     free(locations);
     Py_XDECREF(horizons_npy);
+    Py_XDECREF(premalloced);
     Py_XDECREF(out);
     return ret;
 };
@@ -370,6 +444,10 @@ static PyMethodDef methods[] = {
 
 PyMODINIT_FUNC
 init_sky_map(void) {
+    premalloced_type.tp_new = PyType_GenericNew;
+    if (PyType_Ready(&premalloced_type) < 0)
+        return;
+
     Py_InitModule("_sky_map", methods);
     import_array();
 }

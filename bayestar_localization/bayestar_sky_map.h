@@ -29,9 +29,8 @@ typedef enum
 
 
 /* Perform sky localization based on TDOAs alone. */
-int bayestar_sky_map_tdoa(
-    long npix, /* Input: number of HEALPix pixels. */
-    double *P, /* Output: pre-allocated array of length npix to store posterior map. */
+double *bayestar_sky_map_tdoa(
+    long *npix, /* In/out: number of HEALPix pixels. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
     const double **locs, /* Input: array of detector positions. */
@@ -40,9 +39,8 @@ int bayestar_sky_map_tdoa(
 );
 
 /* Perform sky localization based on TDOAs and amplitude. */
-int bayestar_sky_map_tdoa_snr(
-    long npix, /* Input: number of HEALPix pixels. */
-    double *P, /* Output: pre-allocated array of length npix to store posterior map. */
+double *bayestar_sky_map_tdoa_snr(
+    long *npix, /* In/out: number of HEALPix pixels. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
     const float **responses, /* Pointers to detector responses. */

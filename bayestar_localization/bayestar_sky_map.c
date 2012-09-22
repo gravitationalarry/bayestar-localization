@@ -49,19 +49,25 @@ static double dotprod(const double vec1[3], const double vec2[3])
 }
 
 
+/* Return indices of sorted pixels from greatest to smallest. */
+static gsl_permutation *get_pixel_ranks(long npix, double *P)
+{
+    gsl_permutation *pix_perm = gsl_permutation_alloc(npix);
+    if (pix_perm)
+    {
+        gsl_vector_view P_vector = gsl_vector_view_array(P, npix);
+        gsl_sort_vector_index(pix_perm, &P_vector.vector);
+        gsl_permutation_reverse(pix_perm);
+    }
+    return pix_perm;
+}
+
+
 /* Exponentiate and normalize a log probability sky map. */
-static int exp_normalize(long npix, double *P)
+static void exp_normalize(long npix, double *P, gsl_permutation *pix_perm)
 {
     long i;
     double accum, max_log_p;
-
-    /* Sort pixel indices from greatest log probability. */
-    gsl_permutation *pix_perm = gsl_permutation_alloc(npix);
-    if (!pix_perm)
-        GSL_ERROR("failed to allocate space for permutation data", GSL_ENOMEM);
-    gsl_vector_view P_vector = gsl_vector_view_array(P, npix);
-    gsl_sort_vector_index(pix_perm, &P_vector.vector);
-    gsl_permutation_reverse(pix_perm);
 
     /* Find the value of the greatest log probability. */
     max_log_p = P[gsl_permutation_get(pix_perm, 0)];
@@ -81,12 +87,18 @@ static int exp_normalize(long npix, double *P)
     /* Normalize. */
     for (i = 0; i < npix; i ++)
         P[i] /= accum;
+}
 
-    /* Free permutation. */
-    gsl_permutation_free(pix_perm);
 
-    /* Done! */
-    return GSL_SUCCESS;
+static long indexof_confidence_level(long npix, double *P, double level, gsl_permutation *pix_perm)
+{
+    double accum;
+    long maxpix;
+
+    for (accum = 0, maxpix = 0; maxpix < npix && accum <= level; maxpix ++)
+        accum += P[gsl_permutation_get(pix_perm, maxpix)];
+
+    return maxpix;
 }
 
 
@@ -149,19 +161,101 @@ static int bayestar_sky_map_tdoa_not_normalized_log(
 }
 
 
+static const double autoresolution_confidence_level = 0.9999;
+static const long autoresolution_count_pix = 3072;
+
+
 /* Perform sky localization based on TDOAs alone. */
-int bayestar_sky_map_tdoa(
-    long npix, /* Input: number of HEALPix pixels. */
-    double *P, /* Output: pre-allocated array of length npix to store posterior map. */
+static double *bayestar_sky_map_tdoa_adapt_resolution(
+    gsl_permutation **pix_perm,
+    long *maxpix,
+    long *npix, /* In/out: number of HEALPix pixels. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
     const double **locs, /* Input: array of detector positions. */
     const double *toas, /* Input: array of times of arrival. */
     const double *s2_toas /* Input: uncertainties in times of arrival. */
 ) {
-    int ret = bayestar_sky_map_tdoa_not_normalized_log(npix, P, gmst, nifos, locs, toas, s2_toas);
-    if (ret == GSL_SUCCESS)
-        ret = exp_normalize(npix, P);
+    int ret;
+    double *P = NULL;
+    long my_npix = *npix;
+    long my_maxpix = *npix;
+    gsl_permutation *my_pix_perm = NULL;
+
+    if (my_npix == -1)
+    {
+        my_npix = autoresolution_count_pix / 4;
+        do {
+            my_npix *= 4;
+            printf("Now trying npix=%ld\n", my_npix);
+
+            free(P);
+            gsl_permutation_free(my_pix_perm);
+
+            P = malloc(my_npix * sizeof(double));
+            if (!P)
+                GSL_ERROR_NULL("failed to allocate output array", GSL_ENOMEM);
+            ret = bayestar_sky_map_tdoa_not_normalized_log(my_npix, P, gmst, nifos, locs, toas, s2_toas);
+            if (ret != GSL_SUCCESS)
+            {
+                free(P);
+                P = NULL;
+                goto fail;
+            }
+            my_pix_perm = get_pixel_ranks(my_npix, P);
+            if (!my_pix_perm)
+            {
+                free(P);
+                P = NULL;
+                goto fail;
+            }
+            exp_normalize(my_npix, P, my_pix_perm);
+
+            my_maxpix = indexof_confidence_level(my_npix, P, autoresolution_confidence_level, my_pix_perm);
+            printf("maxpix=%ld\n", my_maxpix);
+        } while (my_maxpix < autoresolution_count_pix);
+    } else {
+        P = malloc(my_npix * sizeof(double));
+        if (!P)
+            GSL_ERROR_NULL("failed to allocate output array", GSL_ENOMEM);
+        ret = bayestar_sky_map_tdoa_not_normalized_log(my_npix, P, gmst, nifos, locs, toas, s2_toas);
+        if (ret != GSL_SUCCESS)
+        {
+            free(P);
+            P = NULL;
+            goto fail;
+        }
+        my_pix_perm = get_pixel_ranks(my_npix, P);
+        if (!my_pix_perm)
+        {
+            free(P);
+            P = NULL;
+            goto fail;
+        }
+        exp_normalize(my_npix, P, my_pix_perm);
+    }
+
+    *npix = my_npix;
+    *pix_perm = my_pix_perm;
+    *maxpix = my_maxpix;
+fail:
+    return P;
+}
+
+
+/* Perform sky localization based on TDOAs alone. */
+double *bayestar_sky_map_tdoa(
+    long *npix, /* In/out: number of HEALPix pixels. */
+    double gmst, /* Greenwich mean sidereal time in radians. */
+    int nifos, /* Input: number of detectors. */
+    const double **locs, /* Input: array of detector positions. */
+    const double *toas, /* Input: array of times of arrival. */
+    const double *s2_toas /* Input: uncertainties in times of arrival. */
+) {
+    long maxpix;
+    gsl_permutation *pix_perm = NULL;
+    double *ret = bayestar_sky_map_tdoa_adapt_resolution(&pix_perm, &maxpix, npix, gmst, nifos, locs, toas, s2_toas);
+    gsl_permutation_free(pix_perm);
     return ret;
 }
 
@@ -195,9 +289,8 @@ static double radial_integrand_uniform_in_volume(double log_r, void *params)
 }
 
 
-int bayestar_sky_map_tdoa_snr(
-    long npix, /* Input: number of HEALPix pixels. */
-    double *P, /* Output: pre-allocated array of length npix to store posterior map. */
+double *bayestar_sky_map_tdoa_snr(
+    long *npix, /* Input: number of HEALPix pixels. */
     double gmst, /* Greenwich mean sidereal time in radians. */
     int nifos, /* Input: number of detectors. */
     const float **responses, /* Pointers to detector responses. */
@@ -214,6 +307,7 @@ int bayestar_sky_map_tdoa_snr(
     long maxpix;
     long i;
     double d1[nifos];
+    double *P;
     gsl_permutation *pix_perm;
 
     /* Function pointer to hold radial integrand. */
@@ -238,11 +332,6 @@ int bayestar_sky_map_tdoa_snr(
     /* Number of integration steps in cos(inclination) */
     static const int nu = 16;
 
-    /* Determine the lateral HEALPix resolution. */
-    nside = npix2nside(npix);
-    if (nside < 0)
-        GSL_ERROR("output is not a valid HEALPix array", GSL_EINVAL);
-
     /* Choose radial integrand function based on selected prior. */
     switch (prior)
     {
@@ -253,7 +342,7 @@ int bayestar_sky_map_tdoa_snr(
             radial_integrand = radial_integrand_uniform_in_volume;
             break;
         default:
-            GSL_ERROR("unrecognized choice of prior", GSL_EINVAL);
+            GSL_ERROR_NULL("unrecognized choice of prior", GSL_EINVAL);
             break;
     }
 
@@ -271,39 +360,20 @@ int bayestar_sky_map_tdoa_snr(
     }
 
     /* Evaluate posterior term only first. */
-    {
-        int ret = bayestar_sky_map_tdoa_not_normalized_log(npix, P, gmst, nifos, locations, toas, s2_toas);
-        if (ret != GSL_SUCCESS)
-            return ret;
-    }
+    P = bayestar_sky_map_tdoa_adapt_resolution(&pix_perm, &maxpix, npix, gmst, nifos, locations, toas, s2_toas);
+    if (!P)
+        return NULL;
 
-    /* Allocate temporary spaces. */
-    pix_perm = gsl_permutation_alloc(npix);
-    if (!pix_perm)
-        GSL_ERROR("failed to allocate space for permutation data", GSL_ENOMEM);
-
-    /* Sort pixel indices by ascending significance. */
-    {
-        gsl_vector_view P_vector = gsl_vector_view_array(P, npix);
-        gsl_sort_vector_index(pix_perm, &P_vector.vector);
-    }
-
-    /* Reverse the permutation so that the pixel indices are sorted by
-     * descending significance. */
-    gsl_permutation_reverse(pix_perm);
-
-    /* Find the number of pixels needed to account for 99.99% of the posterior
-     * conditioned on TDOAs. */
-    {
-        double accum, Ptotal;
-        for (Ptotal = 0, i = 0; i < npix; i ++)
-            Ptotal += exp(P[gsl_permutation_get(pix_perm, i)]);
-        for (accum = 0, maxpix = 0; maxpix < npix && accum <= 0.9999 * Ptotal; maxpix ++)
-            accum += exp(P[gsl_permutation_get(pix_perm, maxpix)]);
-    }
+    /* Determine the lateral HEALPix resolution. */
+    nside = npix2nside(*npix);
 
     /* Zero pixels that didn't meet the TDOA cut. */
-    for (i = maxpix; i < npix; i ++)
+    for (i = 0; i < maxpix; i ++)
+    {
+        long ipix = gsl_permutation_get(pix_perm, i);
+        P[ipix] = log(P[ipix]);
+    }
+    for (; i < *npix; i ++)
     {
         long ipix = gsl_permutation_get(pix_perm, i);
         P[ipix] = -INFINITY;
@@ -313,8 +383,9 @@ int bayestar_sky_map_tdoa_snr(
     gsl_errnos = calloc(maxpix, sizeof(int));
     if (!gsl_errnos)
     {
+        free(P);
         gsl_permutation_free(pix_perm);
-        GSL_ERROR("failed to allocate space for pixel error status", GSL_ENOMEM);
+        GSL_ERROR_NULL("failed to allocate space for pixel error status", GSL_ENOMEM);
     }
 
     /* Turn off error handler while in parallel section to avoid concurrent
@@ -477,7 +548,8 @@ int bayestar_sky_map_tdoa_snr(
         if (gsl_errno != GSL_SUCCESS)
         {
             free(gsl_errnos);
-            GSL_ERROR(gsl_strerror(gsl_errno), gsl_errno);
+            free(P);
+            GSL_ERROR_NULL(gsl_strerror(gsl_errno), gsl_errno);
         }
     }
 
@@ -485,5 +557,14 @@ int bayestar_sky_map_tdoa_snr(
     free(gsl_errnos);
 
     /* Exponentiate and normalize posterior. */
-    return exp_normalize(npix, P);
+    pix_perm = get_pixel_ranks(*npix, P);
+    if (!pix_perm)
+    {
+        free(P);
+        return NULL;
+    }
+    exp_normalize(*npix, P, pix_perm);
+    gsl_permutation_free(pix_perm);
+
+    return P;
 }

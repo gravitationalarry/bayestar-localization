@@ -54,8 +54,8 @@ opts, args = OptionParser(
     description = __doc__,
     usage = '%prog [options] --min-distance Mpc --max-distance Mpc --prior "uniform in log distance"|"uniform in volume" [INPUT.xml[.gz]]',
     option_list = [
-        Option("--nside", "-n", type=int, default=128,
-            help="HEALPix lateral resolution (default=128)"),
+        Option("--nside", "-n", type=int, default=-1,
+            help="HEALPix lateral resolution (default=auto)"),
         Option("--f-low", type=float, default=10, metavar="Hz",
             help="Low frequency cutoff (default=10)"),
         Option("--order", type=int, default=-1,
@@ -219,8 +219,8 @@ for sim_coinc in coinc_table:
     #
 
     # Time and run sky localization.
-    sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals,
-        opts.order, opts.f_low, reference_frequency=opts.reference_frequency, method="toa", fd=opts.fd)
+    sky_map, epoch, elapsed_time = ligolw_sky_map(sngl_inspirals,
+        opts.order, opts.f_low, reference_frequency=opts.reference_frequency, method="toa", fd=opts.fd, nside=opts.nside)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
@@ -237,9 +237,9 @@ for sim_coinc in coinc_table:
     #
 
     # Time and run sky localization.
-    sky_map, epoch, elapsed_time = ligolw_sky_map(opts.nside, sngl_inspirals,
+    sky_map, epoch, elapsed_time = ligolw_sky_map(sngl_inspirals,
         opts.order, opts.f_low, opts.min_distance, opts.max_distance, opts.prior,
-        reference_frequency=opts.reference_frequency, method="toa_snr", fd=opts.fd)
+        reference_frequency=opts.reference_frequency, method="toa_snr", fd=opts.fd, nside=opts.nside)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
