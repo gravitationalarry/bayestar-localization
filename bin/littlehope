@@ -111,9 +111,9 @@ import numpy as np
 # FIXME: sample rate could be a command line option; template duration and data
 # duration should be determined from chirp time
 sample_rate = 4096 # sample rate in Hz
-template_duration = 64 # template duration in seconds
+template_duration = 128 # template duration in seconds
 template_length = sample_rate * template_duration # template length in samples
-data_duration = 128 # data duration in seconds
+data_duration = 512 # data duration in seconds
 data_length = sample_rate * data_duration # data length in samples
 
 
@@ -227,7 +227,7 @@ for i_sim_inspiral in range(n_injections):
         phi = sim_inspiral.coa_phase
         psi = sim_inspiral.polarization
         end_time = lal.LIGOTimeGPS(sim_inspiral.geocent_end_time, sim_inspiral.geocent_end_time_ns)
-        epoch = end_time - 80 # GPS start time of data
+        epoch = end_time - 256 # GPS start time of data
         gmst = lal.GreenwichMeanSiderealTime(end_time)
         try:
             order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
