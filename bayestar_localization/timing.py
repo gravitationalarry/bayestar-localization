@@ -146,32 +146,38 @@ class SignalModel(object):
         Lambda = np.asmatrix([[1, -w1], [-w1, w2]])
 
         # Test values in S/N, phase, and time.
-        dphi = np.pi / 9
-        dtau = np.pi / 4 / np.sqrt(w2)
+        # Create a regular lattice of test points, restricted to lie within one
+        # standard deviation of the true parameter values according to the
+        # Cramér-Rao bound.
         n = 8
-        i = np.arange(1, 2 * n + 1)
+        dphi, dtau = np.sqrt(2) * np.sqrt(np.asarray(Lambda.I.diagonal()).flatten()) / n
+        i = np.concatenate((np.arange(-n, 0), np.arange(1, n + 1)))
+        iphi, itau = np.meshgrid(i, i)
+        iphi = iphi.flatten()
+        itau = itau.flatten()
+        iPhi = np.asarray((iphi, itau))
+        Phi = np.asarray((iphi * dphi, itau * dtau))
+        condition = 0.5 * np.sum(Phi * np.asarray(Lambda * Phi), 0) < 1
+        iphi, itau = iPhi.T[condition].T
+        Phi = np.asmatrix(Phi.T[condition].T / snr)
+        dphi /= snr
+        dtau /= snr
+
+        i = np.arange(1, 2 * np.abs(itau).max() + 1)
 
         sinw_moments = np.concatenate(([0], [self.get_sn_average(lambda w: np.sin(w * ii * dtau)) for ii in i]))
         cosw_moments = np.concatenate(([1], [self.get_sn_average(lambda w: np.cos(w * ii * dtau)) for ii in i]))
         wsinw_moments = np.concatenate(([0], [self.get_sn_average(lambda w: w * np.sin(w * ii * dtau)) for ii in i]))
         wcosw_moments = np.concatenate(([w1], [self.get_sn_average(lambda w: w * np.cos(w * ii * dtau)) for ii in i]))
 
-        i = np.concatenate((np.arange(-n, 0), np.arange(1, n + 1)))
-        iphi, itau = np.meshgrid(i, i)
-        iphi = np.atleast_2d(iphi.flatten())
-        itau = np.atleast_2d(itau.flatten())
-
         A1 = (np.sin(iphi * dphi) * cosw_moments[np.abs(itau)]
             - np.cos(iphi * dphi) * np.sign(itau) * sinw_moments[np.abs(itau)])
         A2 = (-np.sin(iphi * dphi) * wcosw_moments[np.abs(itau)]
             + np.cos(iphi * dphi) * np.sign(itau) * wsinw_moments[np.abs(itau)])
-        A = np.asmatrix(np.vstack((A1, A2)))
+        A = np.asmatrix((A1, A2))
 
-        # Create test points at all possible combinations of test values.
-        Phi = np.asmatrix(np.vstack((iphi * dphi, itau * dtau)))
-
-        iphi, kphi = np.meshgrid(iphi.flatten(), iphi.flatten())
-        itau, ktau = np.meshgrid(itau.flatten(), itau.flatten())
+        iphi, kphi = np.meshgrid(iphi, iphi)
+        itau, ktau = np.meshgrid(itau, itau)
 
         B = np.asmatrix(np.exp(snr2 * (1
             + np.cos((iphi - kphi) * dphi) * cosw_moments[np.abs(itau - ktau)]
