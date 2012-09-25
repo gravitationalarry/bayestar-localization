@@ -149,7 +149,7 @@ class SignalModel(object):
         # Create a regular lattice of test points, restricted to lie within one
         # standard deviation of the true parameter values according to the
         # Cramér-Rao bound.
-        n = 8
+        n = 32
         dphi, dtau = np.sqrt(2) * np.sqrt(np.asarray(Lambda.I.diagonal()).flatten()) / n
         i = np.concatenate((np.arange(-n, 0), np.arange(1, n + 1)))
         iphi, itau = np.meshgrid(i, i)
@@ -158,10 +158,12 @@ class SignalModel(object):
         iPhi = np.asarray((iphi, itau))
         Phi = np.asarray((iphi * dphi, itau * dtau))
         condition = 0.5 * np.sum(Phi * np.asarray(Lambda * Phi), 0) < 1
-        iphi, itau = iPhi.T[condition].T
-        Phi = np.asmatrix(Phi.T[condition].T / snr)
-        dphi /= snr
-        dtau /= snr
+        iPhi = iPhi.T[condition].T
+        Phi = Phi.T[condition].T
+        iphi, itau = iPhi
+        Phi *= 8 / snr
+        dphi *= 8 / snr
+        dtau *= 8 / snr
 
         i = np.arange(1, 2 * np.abs(itau).max() + 1)
 
