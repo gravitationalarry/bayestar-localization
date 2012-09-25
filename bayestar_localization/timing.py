@@ -216,11 +216,8 @@ class SignalModel(object):
         return np.vectorize(self.__get_chapman_robbins_bound)(snr)
 
     def get_cov(self, snr):
-        """Get the Barankin bound if snr < 20, or the Cramér-Rao bound otherwise."""
-        if snr < 20:
-            return self.get_brb(snr)
-        else:
-            return self.get_crb(snr)
+        """Always use the Barankin bound."""
+        return self.get_brb(snr)
 
     # FIXME: np.vectorize doesn't work on unbound instance methods. The excluded
     # keyword, added in Numpy 1.7, could be used here to exclude the zeroth
@@ -239,10 +236,9 @@ class SignalModel(object):
         return np.vectorize(self.__get_crb_toa_uncert)(snr)
 
     def get_toa_uncert(self, snr):
-        """Get timing uncertainty for a given signal to noise ratio. Use the
-        Barankin bound for snr < 20, and the Cramér-Rao bound for snr >= 20."""
-        return np.piecewise(snr, [snr < 20],
-            [self.get_brb_toa_uncert, self.get_crb_toa_uncert])
+        """Get timing uncertainty for a given signal to noise ratio. Always use
+        the Barankin bound."""
+        return self.get_brb_toa_uncert(snr)
 
 
 if __name__ == '__main__':
