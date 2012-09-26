@@ -30,11 +30,6 @@ from scipy import optimize
 from scipy import special
 
 
-def mchirp(m1=1.4, m2=1.4):
-    """Find chirp mass from component masses."""
-    return (m1 * m2) ** 0.6 * (m1 + m2) ** -0.2
-
-
 def get_f_lso(mass1, mass2):
     """Calculate the GW frequency during the last stable orbit of a compact binary."""
     return 1 / (6 ** 1.5 * np.pi * (mass1 + mass2) * lal.LAL_MTSUN_SI)
