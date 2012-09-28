@@ -200,12 +200,15 @@ class SignalModel(object):
 
         snr2 = np.square(snr)
 
-        def minimand((phi, tau)):
-            return -np.square(tau) / (np.exp(2 * snr2 * (1 - self.get_sn_average(lambda w: np.cos(phi - w * tau)))) - 1)
+        def minimand((logphi, logtau)):
+            phi = np.exp(logphi)
+            tau = np.exp(logtau)
+            a = 2 * snr2 * (1 - self.get_sn_average(lambda w: np.cos(phi - w * tau)))
+            return 0.5 * np.log(np.expm1(a)) - logtau
 
-        x0 = np.sqrt(np.diagonal(self.get_crb(snr)))
-        xopt, fopt, _, _, _ = optimize.fmin(minimand, x0=x0, full_output=True)
-        return np.sqrt(-fopt)
+        x0 = np.log(np.sqrt(np.diagonal(self.get_crb(snr))))
+        xopt, fopt, _, _, _, _, _ = optimize.fmin_bfgs(minimand, x0=x0, full_output=True)
+        return np.exp(-fopt)
 
     def get_chapman_robbins_toa_uncert(self, snr):
         return np.vectorize(self.__get_chapman_robbins_toa_uncert)(snr)
