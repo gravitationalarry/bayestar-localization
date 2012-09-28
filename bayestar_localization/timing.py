@@ -209,8 +209,8 @@ class SignalModel(object):
         xopt = optimize.fmin(minimand, x0=x0)
         return np.sqrt(supremand(*xopt))
 
-    def get_chapman_robbins_bound(self, snr):
-        return np.vectorize(self.__get_chapman_robbins_bound)(snr)
+    def get_chapman_robbins_toa_uncert(self, snr):
+        return np.vectorize(self.__get_chapman_robbins_toa_uncert)(snr)
 
     def get_cov(self, snr):
         """Always use the Barankin bound."""
