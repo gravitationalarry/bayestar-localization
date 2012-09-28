@@ -1,1 +1,3 @@
 include COPYING
+include bayestar_localization/bayestar_sky_map.h
+include bayestar_localization/logaddexp.h
