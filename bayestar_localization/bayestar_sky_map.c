@@ -34,6 +34,8 @@
 #include <gsl/gsl_statistics_double.h>
 #include <gsl/gsl_vector.h>
 
+#include "logaddexp.h"
+
 
 static double square(double a)
 {
@@ -520,10 +522,9 @@ double *bayestar_sky_map_tdoa_snr(
 
                     /* Take the logarithm and put the log-normalization back in. */
                     result = log(result) + integrand_params.log_offset;
-                    if (result > -INFINITY) {
-                        const double max_log_p = fmax(result, accum);
-                        accum = log(exp(result - max_log_p) + exp(accum - max_log_p)) + max_log_p;
-                    }
+
+                    /* Accumulate result. */
+                    accum = logaddexp(accum, result);
                 }
             }
         }
