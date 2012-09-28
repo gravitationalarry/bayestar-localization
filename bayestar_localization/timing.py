@@ -206,8 +206,8 @@ class SignalModel(object):
         def minimand(x):
             return -supremand(*x)
         x0 = np.sqrt(np.diagonal(self.get_crb(snr)))
-        xopt = optimize.fmin(minimand, x0=x0)
-        return np.sqrt(supremand(*xopt))
+        xopt, fopt, _, _, _ = optimize.fmin(minimand, x0=x0, full_output=True)
+        return np.sqrt(-fopt)
 
     def get_chapman_robbins_toa_uncert(self, snr):
         return np.vectorize(self.__get_chapman_robbins_toa_uncert)(snr)
