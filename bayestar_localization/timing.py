@@ -200,11 +200,9 @@ class SignalModel(object):
 
         snr2 = np.square(snr)
 
-        def supremand(phi, tau):
-            return np.square(tau) / (np.exp(2 * snr2 * (1 - self.get_sn_average(lambda w: np.cos(phi - w * tau)))) - 1)
+        def minimand((phi, tau)):
+            return -np.square(tau) / (np.exp(2 * snr2 * (1 - self.get_sn_average(lambda w: np.cos(phi - w * tau)))) - 1)
 
-        def minimand(x):
-            return -supremand(*x)
         x0 = np.sqrt(np.diagonal(self.get_crb(snr)))
         xopt, fopt, _, _, _ = optimize.fmin(minimand, x0=x0, full_output=True)
         return np.sqrt(-fopt)
