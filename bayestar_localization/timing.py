@@ -205,7 +205,7 @@ class SignalModel(object):
 
         def minimand(x):
             return -supremand(*x)
-        x0 = np.sqrt(np.diagonal(self.get_brb(snr)))
+        x0 = np.sqrt(np.diagonal(self.get_crb(snr)))
         xopt = optimize.fmin(minimand, x0=x0)
         return np.sqrt(supremand(*xopt))
 
