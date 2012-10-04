@@ -55,6 +55,11 @@ def interpolate_psd(f, S):
     return (lambda f: np.exp(func(np.log(f))))
 
 
+def sign(x):
+    """Works like np.sign, except that 0 is considered to be positive."""
+    return np.where(np.asarray(x) >= 0, 1, -1)
+
+
 class SignalModel(object):
     """Class to speed up computation of signal/noise-weighted integrals and
     Barankin and Cramér-Rao lower bounds on time and phase estimation."""
@@ -168,9 +173,9 @@ class SignalModel(object):
         wcosw_moments = np.concatenate(([w1], [self.get_sn_average(lambda w: w * np.cos(w * ii * dtau)) for ii in i]))
 
         A1 = (np.sin(iphi * dphi) * cosw_moments[np.abs(itau)]
-            - np.cos(iphi * dphi) * np.sign(itau) * sinw_moments[np.abs(itau)])
+            - np.cos(iphi * dphi) * sign(itau) * sinw_moments[np.abs(itau)])
         A2 = (-np.sin(iphi * dphi) * wcosw_moments[np.abs(itau)]
-            + np.cos(iphi * dphi) * np.sign(itau) * wsinw_moments[np.abs(itau)])
+            + np.cos(iphi * dphi) * sign(itau) * wsinw_moments[np.abs(itau)])
         A = np.asmatrix((A1, A2))
 
         iphi, kphi = np.meshgrid(iphi, iphi)
@@ -178,11 +183,11 @@ class SignalModel(object):
 
         B = np.asmatrix(np.exp(snr2 * (1
             + np.cos((iphi - kphi) * dphi) * cosw_moments[np.abs(itau - ktau)]
-            + np.sin((iphi - kphi) * dphi) * np.sign(itau - ktau) * sinw_moments[np.abs(itau - ktau)]
+            + np.sin((iphi - kphi) * dphi) * sign(itau - ktau) * sinw_moments[np.abs(itau - ktau)]
             - np.cos(iphi * dphi) * cosw_moments[np.abs(itau)]
-            - np.sin(iphi * dphi) * np.sign(itau) * sinw_moments[np.abs(itau)]
+            - np.sin(iphi * dphi) * sign(itau) * sinw_moments[np.abs(itau)]
             - np.cos(kphi * dphi) * cosw_moments[np.abs(ktau)]
-            - np.sin(kphi * dphi) * np.sign(ktau) * sinw_moments[np.abs(ktau)])))
+            - np.sin(kphi * dphi) * sign(ktau) * sinw_moments[np.abs(ktau)])))
 
         LambdaInvA = np.asmatrix(linalg.solve(Lambda, A, sym_pos=True))
         Y = Phi - LambdaInvA
