@@ -240,7 +240,7 @@ for i_sim_inspiral in range(n_injections):
             phi, 1 / sample_rate,
             mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
             0, 0, 0, 0, 0, 0,
-            f_low, float('inf'),
+            f_low, f_low,
             DL * 1e6 * lal.LAL_PC_SI,
             inc, 0, 0,
             None, None,
