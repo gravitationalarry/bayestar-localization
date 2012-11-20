@@ -196,7 +196,7 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd
             0, 1 / sample_rate,
             mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
             0, 0, 0, 0, 0, 0,
-            f_low, float('inf'),
+            f_low, f_low,
             1e6 * lal.LAL_PC_SI,
             0, 0, 0,
             None, None,
