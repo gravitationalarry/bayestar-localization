@@ -70,9 +70,10 @@ class SignalModel(object):
 
         if fd:
             # Frequency-domain post-Newtonian inspiral waveform.
-            h = lalsimulation.SimInspiralTaylorF2(0, 1,
+            h = lalsimulation.SimInspiralChooseFDWaveform(0, 1,
                 mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
-                f_low, 1e6 * lal.LAL_PC_SI, 0, order)
+                0, 0, 0, 0, 0, 0, f_low, -1, 1e6 * lal.LAL_PC_SI,
+                0, 0, 0, None, None, order, 0, lalsimulation.TaylorF2)
 
             # Find indices of first and last nonzero samples.
             nonzero = np.nonzero(h.data.data)[0]
@@ -80,9 +81,10 @@ class SignalModel(object):
             last_nonzero = nonzero[-1]
         else:
             # Time-domain post-Newtonian inspiral waveform.
-            hplus, hcross = lalsimulation.SimInspiralTaylorT4PN(0, 1 / 4096,
-                mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
-                f_low, 1e6 * lal.LAL_PC_SI, 0, order)
+            hplus, hcross = lalsimulation.SimInspiralChooseTDWaveform(0,
+                1 / 4096, mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
+                0, 0, 0, 0, 0, 0, f_low, f_low, 1e6 * lal.LAL_PC_SI,
+                0, 0, 0, None, None, order, order, lalsimulation.TaylorT4)
 
             hplus.data.data += hcross.data.data
             hplus.data.data /= np.sqrt(2)
