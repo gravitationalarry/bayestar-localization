@@ -90,15 +90,11 @@ if opts.prior is None:
 import os
 
 # LIGO-LW XML imports.
-from pylal import llwapp as ligolw_app
-from pylal import ligolw_inspinjfind
-from glue.ligolw import table as ligolw_table
-from pylal import ligolw_thinca
 from glue.ligolw import utils as ligolw_utils
-from glue.ligolw import lsctables
 
 # BAYESTAR imports.
 from bayestar import io
+from bayestar_localization import ligolw as ligolw_bayestar
 from bayestar_localization.ligolw_sky_map import ligolw_sky_map
 
 # Other imports.
@@ -167,49 +163,8 @@ header = "elapsed_time searched_area searched_prob offset"
 print >>outfile1, header
 print >>outfile2, header
 
-# Look up coinc_def ids.
-coinc_def = ligolw_thinca.InspiralCoincDef
-coinc_def_id = ligolw_app.get_coinc_def_id(xmldoc, coinc_def.search, coinc_def.search_coinc_type, create_new=False)
-coinc_def = ligolw_inspinjfind.InspiralSCExactCoincDef
-sim_coinc_def_id = ligolw_app.get_coinc_def_id(xmldoc, coinc_def.search, coinc_def.search_coinc_type, create_new=False)
-
-# Look up coinc_table and coinc_map_table.
-coinc_table = ligolw_table.get_table(xmldoc, lsctables.CoincTable.tableName)
-coinc_map_table = ligolw_table.get_table(xmldoc, lsctables.CoincMapTable.tableName)
-
-
-def events_for_coinc_event_id(coinc_event_id):
-    for coinc_map in coinc_map_table:
-        if coinc_map.coinc_event_id == coinc_event_id:
-            for row in ligolw_table.get_table(xmldoc, coinc_map.table_name):
-                column_name = coinc_map.event_id.column_name
-                if getattr(row, column_name) == coinc_map.event_id:
-                    yield coinc_map.event_id, row
-
 # Loop over all coinc_event <-> sim_inspiral coincs.
-for sim_coinc in coinc_table:
-
-    # If this is not a coinc_event <-> sim_inspiral coinc, skip it.
-    if sim_coinc.coinc_def_id != sim_coinc_def_id:
-        continue
-
-    # Locate the sim_inspiral and coinc events.
-    sim_inspiral = None
-    coinc = None
-    for event_id, event in events_for_coinc_event_id(sim_coinc.coinc_event_id):
-        if event_id.table_name == ligolw_table.StripTableName(lsctables.SimInspiralTable.tableName):
-            if sim_inspiral is not None:
-                raise RuntimeError("Found more than one matching sim_inspiral entry")
-            sim_inspiral = event
-        elif event_id.table_name == ligolw_table.StripTableName(lsctables.CoincTable.tableName):
-            if coinc is not None:
-                raise RuntimeError("Found more than one matching coinc entry")
-            coinc = event
-        else:
-            raise RuntimeError("Did not expect coincidence to contain an event of type '%s'" % event_id.table_name)
-
-    sngl_inspirals = list(event
-        for event_id, event in events_for_coinc_event_id(coinc.coinc_event_id))
+for sim_inspiral, sngl_inspirals in ligolw_bayestar.sim_and_sngl_inspirals_for_xmldoc(xmldoc):
 
     ra = sim_inspiral.longitude
     dec = sim_inspiral.latitude
