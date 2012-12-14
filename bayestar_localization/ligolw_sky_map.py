@@ -23,8 +23,8 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 import time
 import numpy as np
-import bayestar_localization
 from bayestar_localization import timing
+from bayestar_localization import sky_map
 from pylal import date
 import lal, lalsimulation
 
@@ -93,9 +93,9 @@ def ligolw_sky_map(sngl_inspirals, order, f_low, min_distance=None, max_distance
     # Time and run sky localization.
     start_time = time.time()
     if method == "toa":
-        sky_map = bayestar_localization.sky_map_tdoa(gmst, toas, s2_toas, locations, nside=nside)
+        sky_map = sky_map.tdoa(gmst, toas, s2_toas, locations, nside=nside)
     elif method == "toa_snr":
-        sky_map = bayestar_localization.sky_map_tdoa_snr(gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance, prior, nside=nside)
+        sky_map = sky_map.tdoa_snr(gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance, prior, nside=nside)
     else:
         raise ValueError("Unrecognized method: %s" % method)
     end_time = time.time()

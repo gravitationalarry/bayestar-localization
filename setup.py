@@ -61,7 +61,7 @@ setup(
     license='GNU General Public License Version 3',
     packages=['bayestar_localization'],
     ext_modules=[
-        Extension('bayestar_localization._sky_map', ['bayestar_localization/_sky_map.c', 'bayestar_localization/bayestar_sky_map.c'],
+        Extension('bayestar_localization.sky_map', ['bayestar_localization/sky_map.c', 'bayestar_localization/bayestar_sky_map.c'],
             **copy_library_dirs_to_runtime_library_dirs(
             **pkgconfig('lal', 'lalsimulation', 'gsl',
                 include_dirs=[np.get_include()] + healpix_include_dirs,
