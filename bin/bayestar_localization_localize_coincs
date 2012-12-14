@@ -86,9 +86,6 @@ if opts.prior is None:
     raise ValueError("Missing required argument --prior")
 
 
-# Python standard library imports.
-import os
-
 # LIGO-LW XML imports.
 from glue.ligolw import utils as ligolw_utils
 
