@@ -72,7 +72,7 @@ def ligolw_sky_map(sngl_inspirals, order, f_low, min_distance=None, max_distance
     gmst = date.XLALGreenwichMeanSiderealTime(epoch)
 
     # Signal models for each detector.
-    signal_models = [timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), order=order, fd=fd)
+    signal_models = [timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), order=order, fd=fd, f_low=f_low)
         for mass1, mass2, ifo in zip(mass1s, mass2s, ifos)]
 
     # Get SNR=1 horizon distances for each detector.
