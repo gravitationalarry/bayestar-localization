@@ -93,9 +93,9 @@ def ligolw_sky_map(sngl_inspirals, order, f_low, min_distance=None, max_distance
     # Time and run sky localization.
     start_time = time.time()
     if method == "toa":
-        sky_map = sky_map.tdoa(gmst, toas, s2_toas, locations, nside=nside)
+        prob = sky_map.tdoa(gmst, toas, s2_toas, locations, nside=nside)
     elif method == "toa_snr":
-        sky_map = sky_map.tdoa_snr(gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance, prior, nside=nside)
+        prob = sky_map.tdoa_snr(gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance, prior, nside=nside)
     else:
         raise ValueError("Unrecognized method: %s" % method)
     end_time = time.time()
@@ -104,4 +104,4 @@ def ligolw_sky_map(sngl_inspirals, order, f_low, min_distance=None, max_distance
     elapsed_time = end_time - start_time
 
     # Done!
-    return sky_map, epoch, elapsed_time
+    return prob, epoch, elapsed_time
