@@ -16,11 +16,12 @@
 #
 
 
-from distutils import log
 from distutils.core import setup
+from misc import *
 from misc.distutils_openmp import *
 import numpy as np
 import os
+
 
 healpixdir = os.getenv('HEALPIXDIR')
 if healpixdir is None:
@@ -29,29 +30,6 @@ if healpixdir is None:
 else:
     healpix_include_dirs = [os.path.join(healpixdir, 'include')]
     healpix_library_dirs = [os.path.join(healpixdir, 'lib')]
-
-
-## {{{ http://code.activestate.com/recipes/502261/ (r1)
-## But modified to throw an error if the package cannot be found.
-def pkgconfig(*packages, **kw):
-    import commands
-    from distutils.errors import DistutilsExecError
-    flag_map = {'-I': 'include_dirs', '-L': 'library_dirs', '-l': 'libraries'}
-    status, output = commands.getstatusoutput("pkg-config --libs --cflags %s" % ' '.join(["'%s'" % s for s in packages]))
-    if status != 0:
-        raise DistutilsExecError("pkg-config: error %d\n%s" % (status, output))
-    for token in output.split():
-        kw.setdefault(flag_map.get(token[:2]), []).append(token[2:])
-    return kw
-## end of http://code.activestate.com/recipes/502261/ }}}
-
-
-def copy_library_dirs_to_runtime_library_dirs(**kwargs):
-    """Add every entry of library_dirs to runtime_library_dirs so that linker
-    adds rpath entries."""
-    kwargs.setdefault('runtime_library_dirs', []).extend(
-        kwargs.get('library_dirs', []))
-    return kwargs
 
 
 setup(
