@@ -56,8 +56,8 @@ parser = OptionParser(
     option_list = [
         Option("--nside", "-n", type=int, default=-1,
             help="HEALPix lateral resolution (default=auto)"),
-        Option("--f-low", type=float, default=10, metavar="Hz",
-            help="Low frequency cutoff (default=10)"),
+        Option("--f-low", type=float, metavar="Hz",
+            help="Low frequency cutoff (default=inherit from sim_inspirals)"),
         Option("--order", type=int, default=-1,
             help="Twice PN amplitude order, used for computing noise moments (default=-1, highest available)"),
         Option("--fd", action="store_true", default=False,
@@ -98,6 +98,7 @@ from bayestar_localization.ligolw_sky_map import ligolw_sky_map
 # Other imports.
 import healpy as hp
 import numpy as np
+import warnings
 
 # Read injection file.
 xmldoc = ligolw_utils.load_filename(infilename)
@@ -167,13 +168,19 @@ for sim_inspiral, sngl_inspirals in ligolw_bayestar.sim_and_sngl_inspirals_for_x
     ra = sim_inspiral.longitude
     dec = sim_inspiral.latitude
 
+    f_low = sim_inspiral.f_lower
+    if opts.f_low is not None:
+        if f_low is not None:
+            warnings.warn("replacing low frequency cutoff in sim_inspiral table with value provided in '--f-low' command line argument")
+        f_low = opts.f_low
+
     #
     # TOA-only sky localization
     #
 
     # Time and run sky localization.
     sky_map, epoch, elapsed_time = ligolw_sky_map(sngl_inspirals,
-        opts.order, opts.f_low, reference_frequency=opts.reference_frequency, method="toa", fd=opts.fd, nside=opts.nside)
+        opts.order, f_low, reference_frequency=opts.reference_frequency, method="toa", fd=opts.fd, nside=opts.nside)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
@@ -191,7 +198,7 @@ for sim_inspiral, sngl_inspirals in ligolw_bayestar.sim_and_sngl_inspirals_for_x
 
     # Time and run sky localization.
     sky_map, epoch, elapsed_time = ligolw_sky_map(sngl_inspirals,
-        opts.order, opts.f_low, opts.min_distance, opts.max_distance, opts.prior,
+        opts.order, f_low, opts.min_distance, opts.max_distance, opts.prior,
         reference_frequency=opts.reference_frequency, method="toa_snr", fd=opts.fd, nside=opts.nside)
 
     # Calculate how well the injection is recovered.
