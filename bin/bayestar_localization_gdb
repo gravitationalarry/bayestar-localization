@@ -36,7 +36,7 @@ prior_choices = ("uniform in log distance", "uniform in volume")
 from optparse import Option, OptionParser
 from bayestar_localization import command
 
-opts, args = OptionParser(
+parser = OptionParser(
     formatter = command.NewlinePreservingHelpFormatter(),
     description = __doc__,
     usage = '%prog [options] --min-distance Mpc --max-distance Mpc --prior "uniform in log distance"|"uniform in volume" [INPUT.xml[.gz]] -o OUTPUT.fits[.gz]',
@@ -58,17 +58,18 @@ opts, args = OptionParser(
         Option("--output", "-o", metavar="OUTPUT.fits[.gz]",
             help="Name of output file (required)")
     ]
-).parse_args()
+)
+opts, args = parser.parse_args()
 
 if len(args) == 0:
     infilename = "/dev/stdin"
 elif len(args) == 1:
     infilename = args[0]
 else:
-    raise ValueError("Too many command line arguments")
+    parser.error("Too many command line arguments")
 
 if opts.prior is None:
-    raise ValueError("Missing required argument --prior")
+    parser.error("Missing required argument --prior")
 
 
 # Python standard library imports.
