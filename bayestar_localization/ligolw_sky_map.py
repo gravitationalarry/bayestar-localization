@@ -23,8 +23,8 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 import time
 import numpy as np
-from bayestar_localization import timing
-from bayestar_localization import sky_map
+from . import timing
+from . import sky_map
 from pylal import date
 import lal, lalsimulation
 
