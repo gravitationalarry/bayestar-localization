@@ -16,8 +16,9 @@
 #
 
 
+from distutils import log
 from distutils.core import setup
-from distutils.extension import Extension
+from misc.distutils_openmp import *
 import numpy as np
 import os
 
@@ -67,8 +68,9 @@ setup(
             **pkgconfig('lal', 'lalsimulation', 'gsl',
                 include_dirs=[np.get_include()] + healpix_include_dirs,
                 library_dirs=healpix_library_dirs,
-                libraries=['cfitsio', 'chealpix', 'gomp'],
-                extra_compile_args=['-fopenmp', '-std=c99']
+                libraries=['cfitsio', 'chealpix'],
+                extra_compile_args=['-std=c99'],
+                openmp=True
             ))
         )
     ],
@@ -80,5 +82,6 @@ setup(
         'bin/bayestar_localization_sim_to_tmpltbank',
         'bin/ligolw_coire_to_coinc',
         'bin/littlehope'
-    ]
+    ],
+    cmdclass={'build_ext': build_ext}
 )
