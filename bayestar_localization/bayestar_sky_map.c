@@ -189,7 +189,6 @@ static double *bayestar_sky_map_tdoa_adapt_resolution(
         my_npix = autoresolution_count_pix / 4;
         do {
             my_npix *= 4;
-            printf("Now trying npix=%ld\n", my_npix);
 
             free(P);
             gsl_permutation_free(my_pix_perm);
@@ -214,7 +213,6 @@ static double *bayestar_sky_map_tdoa_adapt_resolution(
             exp_normalize(my_npix, P, my_pix_perm);
 
             my_maxpix = indexof_confidence_level(my_npix, P, autoresolution_confidence_level, my_pix_perm);
-            printf("maxpix=%ld\n", my_maxpix);
         } while (my_maxpix < autoresolution_count_pix);
     } else {
         P = malloc(my_npix * sizeof(double));
