@@ -28,6 +28,7 @@ from scipy import interpolate
 from scipy import linalg
 from scipy import optimize
 from scipy import special
+from .decorator import memoized
 
 
 def get_f_lso(mass1, mass2):
@@ -60,6 +61,7 @@ def sign(x):
     return np.where(np.asarray(x) >= 0, 1, -1)
 
 
+@memoized
 class SignalModel(object):
     """Class to speed up computation of signal/noise-weighted integrals and
     Barankin and Cramér-Rao lower bounds on time and phase estimation."""
@@ -115,11 +117,13 @@ class SignalModel(object):
     def get_horizon_distance(self, snr_thresh=1):
         return np.sqrt(self.den) / snr_thresh
 
+    @memoized
     def get_sn_average(self, func):
         """Get the average of a function of angular frequency, weighted by the
         signal to noise per unit angular frequency."""
         return np.trapz(func(self.w) * self.denom_integrand, dx=self.dw) / self.den
 
+    @memoized
     def get_sn_moment(self, power):
         """Get the average of angular frequency to the given power, weighted by
         the signal to noise per unit frequency."""
@@ -133,6 +137,7 @@ class SignalModel(object):
         I = np.asarray(((1, -w1), (-w1, w2)))
         return linalg.inv(I) / np.square(snr)
 
+    @memoized
     def get_brb(self, snr):
         """Get the Barankin bound on the phase and time estimation covariance."""
 
