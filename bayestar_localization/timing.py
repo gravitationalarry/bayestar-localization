@@ -67,6 +67,9 @@ def get_approximant_and_orders_from_string(s):
     "TaylorT4" and the phase order is 7 (twice 3.5). If the input contains the
     substring "restricted" or "Restricted", then the amplitude order is taken to
     be 0. Otherwise, the amplitude order is the same as the phase order."""
+    # SWIG-wrapped functions apparently do not understand Unicode, but
+    # often the input argument will come from a Unicode XML file.
+    s = str(s)
     approximant = lalsimulation.GetApproximantFromString(s)
     try:
         phase_order = lalsimulation.GetOrderFromString(s)
