@@ -91,6 +91,7 @@ from glue.ligolw import utils as ligolw_utils
 # BAYESTAR imports.
 from bayestar import io
 from bayestar_localization import ligolw as ligolw_bayestar
+from bayestar_localization import timing
 from bayestar_localization.ligolw_sky_map import ligolw_sky_map
 
 # Other imports.
