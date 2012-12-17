@@ -60,8 +60,6 @@ parser = OptionParser(
             help="Low frequency cutoff (default=inherit from sim_inspirals)"),
         Option("--waveform",
             help="Waveform to use for determining parameter estimation accuracy from signal model (default=inherit from sim_inspirals)"),
-        Option("--fd", action="store_true", default=False,
-            help="Use frequency-domain waveforms for templates (default=false)"),
         Option("--min-distance", type=float, metavar="Mpc",
             help="Minimum distance of prior in megaparsecs (required)"),
         Option("--max-distance", type=float, metavar="Mpc",
