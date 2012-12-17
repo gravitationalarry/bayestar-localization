@@ -173,16 +173,16 @@ def matched_filter_real(template, psd):
     return tdfilter
 
 
-def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd=False):
+def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, approximant, amplitude_order, phase_order):
     template_length = sample_rate * template_duration
-    if fd:
+    if approximant == lalsimulation.TaylorF2:
         f_lso = timing.get_f_lso(mass1, mass2)
         zf = lal.CreateCOMPLEX16FrequencySeries(None,
             lal.LIGOTimeGPS(-template_duration), 0,
             1 / template_duration, lal.lalDimensionlessUnit,
             template_length // 2 + 1)
         zz = np.empty(zf.data.data.shape, dtype=zf.data.data.dtype)
-        spawaveform.waveform(mass1, mass2, 7,
+        spawaveform.waveform(mass1, mass2, phase_order,
             1 / template_duration, 1 / sample_rate, f_low, f_lso, zz)
         zf.data.data = zz
 
@@ -191,7 +191,7 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd
             lal.lalDimensionlessUnit, len(zf.data.data))
         psd.data.data = S(abscissa(psd))
         zW = matched_filter_spa(zf, psd)
-    else:
+    elif approximant == lalsimulation.TaylorT4:
         hplus, hcross = lalsimulation.SimInspiralChooseTDWaveform(
             0, 1 / sample_rate,
             mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
@@ -200,9 +200,9 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd
             1e6 * lal.LAL_PC_SI,
             0, 0, 0,
             None, None,
-            lalsimulation.LAL_PNORDER_THREE,
-            lalsimulation.LAL_PNORDER_THREE_POINT_FIVE,
-            lalsimulation.TaylorT4)
+            amplitude_order,
+            phase_order,
+            approximant)
 
         ht = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(-template_duration), hplus.f0, hplus.deltaT, hplus.sampleUnits, template_length)
         hf = lal.CreateCOMPLEX16FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 0, lal.lalDimensionlessUnit, template_length // 2 + 1)
@@ -226,6 +226,8 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd
 
         zW = lal.CreateCOMPLEX16TimeSeries(None, zWreal.epoch, zWreal.f0, zWreal.deltaT, zWreal.sampleUnits, len(zWreal.data.data))
         zW.data.data = zWreal.data.data + zWimag.data.data * 1j
+    else:
+        raise ValueError("unrecognized approximant")
     return zW.data.data[::-1].conj() * np.sqrt(2) * template_duration / sample_rate / 2
 
 

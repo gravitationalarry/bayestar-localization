@@ -61,32 +61,50 @@ def sign(x):
     return np.where(np.asarray(x) >= 0, 1, -1)
 
 
+def get_approximant_and_orders_from_string(s):
+    """Determine the approximant, amplitude order, and phase order for a string
+    of the form "TaylorT4threePointFivePN". In this example, the waveform is
+    "TaylorT4" and the phase order is 7 (twice 3.5). If the input contains the
+    substring "restricted" or "Restricted", then the amplitude order is taken to
+    be 0. Otherwise, the amplitude order is the same as the phase order."""
+    approximant = lalsimulation.GetApproximantFromString(s)
+    try:
+        phase_order = lalsimulation.GetOrderFromString(s)
+    except RuntimeError:
+        phase_order = -1
+    if 'restricted' in s or 'Restricted' in s:
+        amplitude_order = 0
+    else:
+        amplitude_order = phase_order
+    return approximant, amplitude_order, phase_order
+
+
 @memoized
 class SignalModel(object):
     """Class to speed up computation of signal/noise-weighted integrals and
     Barankin and Cramér-Rao lower bounds on time and phase estimation."""
 
-    def __init__(self, mass1, mass2, S, order=-1, f_low=10, fd=False):
+    def __init__(self, mass1, mass2, S, f_low, approximant, amplitude_order, phase_order):
         """Create a TaylorF2 signal model with the given masses, PSD function
         S(f), PN amplitude order, and low-frequency cutoff."""
 
-        if fd:
+        if approximant == lalsimulation.TaylorF2:
             # Frequency-domain post-Newtonian inspiral waveform.
             h = lalsimulation.SimInspiralChooseFDWaveform(0, 1,
                 mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
                 0, 0, 0, 0, 0, 0, f_low, -1, 1e6 * lal.LAL_PC_SI,
-                0, 0, 0, None, None, order, 0, lalsimulation.TaylorF2)
+                0, 0, 0, None, None, amplitude_order, 0, approximant)
 
             # Find indices of first and last nonzero samples.
             nonzero = np.nonzero(h.data.data)[0]
             first_nonzero = nonzero[0]
             last_nonzero = nonzero[-1]
-        else:
+        elif approximant == lalsimulation.TaylorT4:
             # Time-domain post-Newtonian inspiral waveform.
             hplus, hcross = lalsimulation.SimInspiralChooseTDWaveform(0,
                 1 / 4096, mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
                 0, 0, 0, 0, 0, 0, f_low, f_low, 1e6 * lal.LAL_PC_SI,
-                0, 0, 0, None, None, order, order, lalsimulation.TaylorT4)
+                0, 0, 0, None, None, amplitude_order, phase_order, approximant)
 
             hplus.data.data += hcross.data.data
             hplus.data.data /= np.sqrt(2)
@@ -99,6 +117,8 @@ class SignalModel(object):
             first_nonzero = long(np.floor((f_low - h.f0) / h.deltaF))
             last_nonzero = long(np.ceil((2048 - h.f0) / h.deltaF))
             last_nonzero = min(last_nonzero, len(h.data.data) - 1)
+        else:
+            raise ValueError("unrecognized approximant")
 
         # Frequency sample points
         self.dw = 2 * np.pi * h.deltaF
@@ -258,8 +278,8 @@ if __name__ == '__main__':
     colors = 'rgb'
     plt.figure(figsize=(6, 6))
     ax = plt.subplot(111, aspect=1)
-    for color, mass_pair in zip(colors, mass_pairs):
-        signal_model = SignalModel(*mass_pair, S=get_noise_psd_func("H1"), f_low=30)
+    for color, (mass1, mass2) in zip(colors, mass_pairs):
+        signal_model = SignalModel(mass1, mass2, get_noise_psd_func("H1"), 30, lalsimulation.TaylorF2, -1, -1)
         snr = np.logspace(0, 2, 20)
         plt.loglog(snr, signal_model.get_toa_uncert(snr), '-o', mew=2, lw=2, mfc='none', mec=color, color=color)
         plt.loglog(snr, signal_model.get_crb_toa_uncert(snr), '--', color=color)

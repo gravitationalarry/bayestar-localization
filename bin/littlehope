@@ -59,8 +59,8 @@ parser = OptionParser(
             help="Trigger interpolation method (default=lanczos)"),
         Option("--interp-window", metavar="SAMPLES", type=int, default=2,
             help="Trigger interpolation window (default=2)"),
-        Option("--fd", action="store_true", default=False,
-            help="Use frequency-domain waveforms for templates (default=false)"),
+        Option("--waveform",
+            help="Waveform to use for templates"),
         Option("--snr-threshold", type=float, default=8.,
             help="Single-detector SNR threshold (default=8)"),
         Option("--min-triggers", type=int, default=3,
@@ -78,6 +78,8 @@ elif len(args) == 1:
     infilename = args[0]
 else:
     parser.error("Too many command line arguments.")
+if opts.waveform is None:
+    parser.error("Missing required argument --waveform.")
 
 
 # Python standard library imports.
@@ -106,6 +108,9 @@ from bayestar_localization import filter
 
 # Other imports.
 import numpy as np
+
+
+template_approximant, template_amplitude_order, template_phase_order = timing.get_approximant_and_orders_from_string(opts.waveform)
 
 
 # FIXME: sample rate could be a command line option; template duration and data
@@ -188,7 +193,7 @@ templates = dict(
         dict(
             (
                 ifo,
-                filter.generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, fd=opts.fd)
+                filter.generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, template_approximant, template_amplitude_order, template_phase_order)
             ) for ifo, S in psdfuncs.iteritems()
         )
     ) for mass1, mass2, f_low in inj_params)
@@ -229,11 +234,9 @@ for i_sim_inspiral in range(n_injections):
         end_time = lal.LIGOTimeGPS(sim_inspiral.geocent_end_time, sim_inspiral.geocent_end_time_ns)
         epoch = end_time - 256 # GPS start time of data
         gmst = lal.GreenwichMeanSiderealTime(end_time)
-        try:
-            order = lalsimulation.GetOrderFromString(str(sim_inspiral.waveform))
-        except RuntimeError:
-            warnings.warn('could not determine PN order for injection; using highest order available')
-            order = -1
+        approximant, amplitude_order, phase_order = timing.get_approximant_and_orders_from_string(waveform)
+        if approximant != lalsimulation.TaylorT4:
+            raise ValueError("unrecognized approximant")
 
         # Generate injection
         hplus, hcross = lalsimulation.SimInspiralChooseTDWaveform(
@@ -244,9 +247,9 @@ for i_sim_inspiral in range(n_injections):
             DL * 1e6 * lal.LAL_PC_SI,
             inc, 0, 0,
             None, None,
-            order,
-            order,
-            lalsimulation.TaylorT4)
+            amplitude_order,
+            phase_order,
+            approximant)
         hplus.epoch += end_time
         hcross.epoch += end_time
 
@@ -259,7 +262,7 @@ for i_sim_inspiral in range(n_injections):
         h = lalsimulation.SimDetectorStrainREAL8TimeSeries(hplus, hcross,
             ra, dec, psi, detector)
 
-        horizon = timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), f_low=f_low).get_horizon_distance()
+        horizon = timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), f_low, approximant, amplitude_order, phase_order).get_horizon_distance()
 
         # Add injection to data
         lal.AddREAL8TimeSeries(x, h)

@@ -58,8 +58,8 @@ parser = OptionParser(
             help="HEALPix lateral resolution (default=auto)"),
         Option("--f-low", type=float, metavar="Hz",
             help="Low frequency cutoff (default=inherit from sim_inspirals)"),
-        Option("--order", type=int, default=-1,
-            help="Twice PN amplitude order, used for computing noise moments (default=-1, highest available)"),
+        Option("--waveform",
+            help="Waveform to use for determining parameter estimation accuracy from signal model (default=inherit from sim_inspirals)"),
         Option("--fd", action="store_true", default=False,
             help="Use frequency-domain waveforms for templates (default=false)"),
         Option("--min-distance", type=float, metavar="Mpc",
@@ -174,13 +174,20 @@ for sim_inspiral, sngl_inspirals in ligolw_bayestar.sim_and_sngl_inspirals_for_x
             warnings.warn("replacing low frequency cutoff in sim_inspiral table with value provided in '--f-low' command line argument")
         f_low = opts.f_low
 
+    waveform = sim_inspiral.waveform
+    if opts.waveform is not None:
+        if waveform is not None:
+            warnings.warn("replacing waveform in sim_inspiral table with value provided in '--waveform' command line argument")
+        waveform = opts.waveform
+    approximant, amplitude_order, phase_order = timing.get_approximant_and_orders_from_string(waveform)
+
     #
     # TOA-only sky localization
     #
 
     # Time and run sky localization.
     sky_map, epoch, elapsed_time = ligolw_sky_map(sngl_inspirals,
-        opts.order, f_low, reference_frequency=opts.reference_frequency, method="toa", fd=opts.fd, nside=opts.nside)
+        opts.order, approximant, amplitude_order, phase_order, f_low, reference_frequency=opts.reference_frequency, method="toa", nside=opts.nside)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
@@ -198,8 +205,8 @@ for sim_inspiral, sngl_inspirals in ligolw_bayestar.sim_and_sngl_inspirals_for_x
 
     # Time and run sky localization.
     sky_map, epoch, elapsed_time = ligolw_sky_map(sngl_inspirals,
-        opts.order, f_low, opts.min_distance, opts.max_distance, opts.prior,
-        reference_frequency=opts.reference_frequency, method="toa_snr", fd=opts.fd, nside=opts.nside)
+        approximant, amplitude_order, phase_order, f_low, opts.min_distance, opts.max_distance, opts.prior,
+        reference_frequency=opts.reference_frequency, method="toa_snr", nside=opts.nside)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
