@@ -186,7 +186,7 @@ for sim_inspiral, sngl_inspirals in ligolw_bayestar.sim_and_sngl_inspirals_for_x
 
     # Time and run sky localization.
     sky_map, epoch, elapsed_time = ligolw_sky_map(sngl_inspirals,
-        opts.order, approximant, amplitude_order, phase_order, f_low, reference_frequency=opts.reference_frequency, method="toa", nside=opts.nside)
+        approximant, amplitude_order, phase_order, f_low, reference_frequency=opts.reference_frequency, method="toa", nside=opts.nside)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)
