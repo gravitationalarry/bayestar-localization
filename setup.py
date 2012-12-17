@@ -39,9 +39,9 @@ setup(
     author_email='leo.singer@ligo.org',
     license='GNU General Public License Version 3',
     requires=['bayestar', 'healpy', 'numpy', 'matplotlib', 'glue', 'pylal', 'lal', 'lalsimulation'],
-    packages=['bayestar_localization'],
+    packages=['bayestar'],
     ext_modules=[
-        Extension('bayestar_localization.sky_map', ['bayestar_localization/sky_map.c', 'bayestar_localization/bayestar_sky_map.c'],
+        Extension('bayestar.sky_map', ['bayestar/sky_map.c', 'bayestar/bayestar_sky_map.c'],
             **copy_library_dirs_to_runtime_library_dirs(
             **pkgconfig('lal', 'lalsimulation', 'gsl',
                 include_dirs=[np.get_include()] + healpix_include_dirs,
@@ -53,11 +53,11 @@ setup(
         )
     ],
     scripts=[
-        'bin/bayestar_localization_gdb',
-        'bin/bayestar_localization_cluster_coincs',
-        'bin/bayestar_localization_realize_coincs',
-        'bin/bayestar_localization_localize_coincs',
-        'bin/bayestar_localization_sim_to_tmpltbank',
+        'bin/bayestar_localize_gdb',
+        'bin/bayestar_cluster_coincs',
+        'bin/bayestar_realize_coincs',
+        'bin/bayestar_localize_coincs',
+        'bin/bayestar_sim_to_tmpltbank',
         'bin/ligolw_coire_to_coinc',
         'bin/littlehope'
     ],

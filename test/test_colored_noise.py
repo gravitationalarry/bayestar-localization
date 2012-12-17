@@ -25,8 +25,8 @@ from matplotlib import pyplot as plt
 from matplotlib import mlab
 import lal
 import lalsimulation
-from bayestar_localization import filter
-from bayestar_localization import timing
+from bayestar import filter
+from bayestar import timing
 
 # Sample rate in Hz
 sample_rate = 4096

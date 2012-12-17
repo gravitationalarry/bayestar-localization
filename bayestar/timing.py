@@ -275,7 +275,7 @@ class SignalModel(object):
 
 
 if __name__ == '__main__':
-    # Demo; execute with "python -m bayestar_localization.timing"
+    # Demo; execute with "python -m bayestar.timing"
     from matplotlib import pyplot as plt
     mass_pairs = ((1.4, 1.4), (1.4, 10.), (10., 10.))
     colors = 'rgb'

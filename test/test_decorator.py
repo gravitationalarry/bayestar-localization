@@ -21,7 +21,7 @@ Test cases for is_in_fov function.
 __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 import unittest
-from bayestar_localization.decorator import *
+from bayestar.decorator import *
 
 
 class TestMemoize(unittest.TestCase):

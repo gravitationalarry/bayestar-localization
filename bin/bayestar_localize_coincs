@@ -47,7 +47,7 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 # Command line interface.
 prior_choices = ("uniform in log distance", "uniform in volume")
 from optparse import Option, OptionParser
-from bayestar_localization import command
+from bayestar import command
 
 parser = OptionParser(
     formatter = command.NewlinePreservingHelpFormatter(),
@@ -90,9 +90,9 @@ from glue.ligolw import utils as ligolw_utils
 
 # BAYESTAR imports.
 from bayestar import io
-from bayestar_localization import ligolw as ligolw_bayestar
-from bayestar_localization import timing
-from bayestar_localization.ligolw_sky_map import ligolw_sky_map
+from bayestar import ligolw as ligolw_bayestar
+from bayestar import timing
+from bayestar.ligolw_sky_map import ligolw_sky_map
 
 # Other imports.
 import healpy as hp

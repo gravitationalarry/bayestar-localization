@@ -24,7 +24,7 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 # Command line interface.
 from optparse import Option, OptionParser
-from bayestar_localization import command
+from bayestar import command
 
 parser = OptionParser(
     formatter = command.NewlinePreservingHelpFormatter(),

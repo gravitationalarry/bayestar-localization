@@ -32,7 +32,7 @@ import lalsimulation
 from pylal import spawaveform
 
 # My own imports
-from bayestar_localization import timing
+from bayestar import timing
 
 
 # Useful sample units
