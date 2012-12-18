@@ -53,7 +53,7 @@ setup(
         )
     ],
     scripts=[
-        'bin/bayestar_localize_gdb',
+        'bin/bayestar_localize_gracedb',
         'bin/bayestar_cluster_coincs',
         'bin/bayestar_realize_coincs',
         'bin/bayestar_localize_coincs',
