@@ -64,15 +64,15 @@ class GraceDbLogStream(object):
 
 class GraceDbLogFormatter(logging.Formatter):
     def __init__(self):
-        super(GraceDbLogFormatter, self).__init__(logging.BASIC_FORMAT)
+        logging.Formatter.__init__(self, logging.BASIC_FORMAT)
     def format(self, record):
-        s = super(GraceDbLogFormatter, self).format(record)
+        s = logging.Formatter.format(self, record)
         return '<div style="white-space:pre-wrap">' + s.strip("\n") + '</div>'
 
 class GraceDbLogHandler(logging.StreamHandler):
     def __init__(self, gracedb, graceid):
         stream = GraceDbLogStream(gracedb, graceid)
-        super(GraceDbLogHandler, self).__init__(stream)
+        logging.StreamHandler.__init__(self, stream)
         self.formatter = GraceDbLogFormatter()
 
 
