@@ -29,6 +29,31 @@ from pylal import date
 import lal, lalsimulation
 
 
+# Copied and adapted from gstlal.reference_psd.read_psd_xmldoc.
+# FIXME: remove this when read_psd_xmldoc is available in releases of gstlal
+# that are installed on all clusters.
+def read_psd_xmldoc(xmldoc):
+    """
+    Parse a dictionary of PSD frequency series objects from an XML
+    document.  See also make_psd_xmldoc() for the construction of XML documents
+    from a dictionary of PSDs.  Interprets an empty freuency series for an
+    instrument as None.
+    """
+    from glue.ligolw import ligolw
+    from glue.ligolw import param
+    from glue.ligolw import utils
+    from pylal import datatypes as laltypes
+    from pylal import series as lalseries
+
+    out = dict((param.get_pyvalue(elem, u"instrument"), lalseries.parse_REAL8FrequencySeries(elem)) for elem in xmldoc.getElementsByTagName(ligolw.LIGO_LW.tagName) if elem.hasAttribute(u"Name") and elem.getAttribute(u"Name") == u"REAL8FrequencySeries")
+    # Interpret empty frequency series as None
+    for k in out:
+        if len(out[k].data) == 0:
+            out[k] = None
+    return out
+# End section copied and adapted from gstlal.reference_psd.read_psd_xmldoc.
+
+
 def complex_from_polar(r, phi):
     return r * (np.cos(phi) + np.sin(phi) * 1j)
 
@@ -147,7 +172,7 @@ def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance, max_dis
 
     # Read PSDs.
     xmldoc, _ = ligolw_utils.load_fileobj(psd_file)
-    psds = reference_psd.read_psd_xmldoc(xmldoc)
+    psds = read_psd_xmldoc(xmldoc)
 
     # Rearrange PSDs into the same order as the sngl_inspirals.
     psds = [psds[sngl_inspiral.ifo] for sngl_inspiral in sngl_inspirals]
