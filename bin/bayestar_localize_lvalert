@@ -60,7 +60,7 @@ class GraceDbLogStream(object):
     def flush(self):
         pass
     def write(self, text):
-        self.gracedb.writeLog(self.graceid, text.replace("\n", "<br/>"))
+        self.gracedb.writeLog(self.graceid, text)
 
 class GraceDbLogFormatter(logging.Formatter):
     def __init__(self):
