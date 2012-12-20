@@ -54,6 +54,7 @@ setup(
     ],
     scripts=[
         'bin/bayestar_localize_gracedb',
+        'bin/bayestar_localize_lvalert',
         'bin/bayestar_cluster_coincs',
         'bin/bayestar_realize_coincs',
         'bin/bayestar_localize_coincs',

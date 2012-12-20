@@ -109,3 +109,53 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
 
     # Done!
     return prob, epoch, elapsed_time
+
+
+def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance, max_distance, prior, reference_frequency=None, nside=-1):
+    # LIGO-LW XML imports.
+    from glue.ligolw import table as ligolw_table
+    from glue.ligolw import utils as ligolw_utils
+    from glue.ligolw import lsctables
+
+    # gstlal imports
+    from gstlal import reference_psd
+
+    # BAYESTAR imports.
+    from bayestar import io
+
+    # Determine approximant, amplitude order, and phase order from command line arguments.
+    approximant, amplitude_order, phase_order = timing.get_approximant_and_orders_from_string(waveform)
+
+    # Read input file.
+    xmldoc, _ = ligolw_utils.load_fileobj(coinc_file)
+
+    # Locate the tables that we need.
+    coinc_inspiral_table = ligolw_table.get_table(xmldoc,
+        lsctables.CoincInspiralTable.tableName)
+    coinc_map_table = ligolw_table.get_table(xmldoc,
+        lsctables.CoincMapTable.tableName)
+    sngl_inspiral_table = ligolw_table.get_table(xmldoc,
+        lsctables.SnglInspiralTable.tableName)
+
+    # Locate the sngl_inspiral rows that we need.
+    coinc_inspiral = coinc_inspiral_table[0]
+    coinc_event_id = coinc_inspiral.coinc_event_id
+    event_ids = [coinc_map.event_id for coinc_map in coinc_map_table
+        if coinc_map.coinc_event_id == coinc_event_id]
+    sngl_inspirals = [(sngl_inspiral for sngl_inspiral in sngl_inspiral_table
+        if sngl_inspiral.event_id == event_id).next() for event_id in event_ids]
+
+    # Read PSDs.
+    xmldoc, _ = ligolw_utils.load_fileobj(psd_file)
+    psds = reference_psd.read_psd_xmldoc(xmldoc)
+
+    # Rearrange PSDs into the same order as the sngl_inspirals.
+    psds = [psds[sngl_inspiral.ifo] for sngl_inspiral in sngl_inspirals]
+
+    # Interpolate PSDs.
+    psds = [timing.interpolate_psd(psd.f0 + np.arange(len(psd.data)) * psd.deltaF, psd.data) for psd in psds]
+
+    # TOA+SNR sky localization
+    return ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
+        min_distance, max_distance, prior,
+        reference_frequency=reference_frequency, nside=nside, psds=psds)
