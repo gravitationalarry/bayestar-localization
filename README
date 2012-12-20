@@ -1,4 +1,22 @@
 BAYESTAR-LOCALIZATION
 =====================
 
-Nothing here yet...
+Rapid Bayesian sky localization for gravitational wave inspiral events.
+
+Dependencies
+============
+
+ - BAYESTAR <https://www.lsc-group.phys.uwm.edu/daswg/projects/bayestar.html>
+ - HEALPix >= 3.00 <http://sourceforge.net/projects/healpix/>
+ - Healpy >= 1.4.1 <http://code.google.com/p/healpy/>
+ - PyFITS <http://www.stsci.edu/institute/software_hardware/pyfits>
+ - NumPy <http://numpy.scipy.org/>
+ - SciPy <http://www.scipy.org/>
+ - an OpenMP-enabled C/C++ compiler (optional, for parallelization)
+   (GCC >= 4.2 on most Linux systems, or >= 4.1 on CentOS; MS Visual C++ on Windows)
+ - pylal <https://www.lsc-group.phys.uwm.edu/daswg/projects/pylal.html>
+ - lal and lalsimulation with SWIG bindings enabled
+   <https://www.lsc-group.phys.uwm.edu/daswg/projects/lalsuite.html>
+ - Glue <https://www.lsc-group.phys.uwm.edu/daswg/projects/glue.html>
+ - GraceDb <https://www.lsc-group.phys.uwm.edu/daswg/projects/gracedb.html>,
+   for optional integration with LIGO's GraceDb and LValert
