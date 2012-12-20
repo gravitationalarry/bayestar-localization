@@ -38,7 +38,7 @@ setup(
     author='Leo Singer',
     author_email='leo.singer@ligo.org',
     license='GNU General Public License Version 3',
-    requires=['bayestar', 'healpy', 'numpy', 'matplotlib', 'glue', 'pylal', 'lal', 'lalsimulation'],
+    requires=['bayestar', 'healpy', 'numpy', 'glue', 'pylal', 'lal', 'lalsimulation'],
     packages=['bayestar'],
     ext_modules=[
         Extension('bayestar.sky_map', ['bayestar/sky_map.c', 'bayestar/bayestar_sky_map.c'],
