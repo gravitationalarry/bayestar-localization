@@ -143,9 +143,6 @@ def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance, max_dis
     # gstlal imports
     from gstlal import reference_psd
 
-    # BAYESTAR imports.
-    from bayestar import io
-
     # Determine approximant, amplitude order, and phase order from command line arguments.
     approximant, amplitude_order, phase_order = timing.get_approximant_and_orders_from_string(waveform)
 
