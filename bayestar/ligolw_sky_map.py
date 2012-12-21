@@ -41,7 +41,6 @@ def read_psd_xmldoc(xmldoc):
     """
     from glue.ligolw import ligolw
     from glue.ligolw import param
-    from pylal import datatypes as laltypes
     from pylal import series as lalseries
 
     out = dict((param.get_pyvalue(elem, u"instrument"), lalseries.parse_REAL8FrequencySeries(elem)) for elem in xmldoc.getElementsByTagName(ligolw.LIGO_LW.tagName) if elem.hasAttribute(u"Name") and elem.getAttribute(u"Name") == u"REAL8FrequencySeries")
