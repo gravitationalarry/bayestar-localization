@@ -24,7 +24,6 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 # LIGO-LW XML imports.
 from pylal import ligolw_inspinjfind
 from glue.ligolw import table as ligolw_table
-from pylal import ligolw_thinca
 from glue.ligolw import lsctables
 
 
@@ -39,10 +38,6 @@ def sim_and_sngl_inspirals_for_xmldoc(xmldoc):
     coinc_map_table = ligolw_table.get_table(xmldoc, lsctables.CoincMapTable.tableName)
 
     # Look up coinc_def ids.
-    coinc_def_id = coinc_def_table.get_coinc_def_id(
-        ligolw_thinca.InspiralCoincDef.search,
-        ligolw_thinca.InspiralCoincDef.search_coinc_type,
-        create_new=False)
     sim_coinc_def_id = coinc_def_table.get_coinc_def_id(
         ligolw_inspinjfind.InspiralSCExactCoincDef.search,
         ligolw_inspinjfind.InspiralSCExactCoincDef.search_coinc_type,
