@@ -57,8 +57,7 @@ from pylal import ligolw_thinca
 from glue.ligolw import utils as ligolw_utils
 from glue.ligolw import lsctables
 
-# glue, LAL and pylal imports.
-from pylal.xlal import inject
+# glue and LAL imports.
 from glue import segments
 from glue import lal
 
