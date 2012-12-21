@@ -80,7 +80,6 @@ from glue.ligolw import utils as ligolw_utils
 from glue.ligolw import lsctables
 
 # glue, LAL and pylal imports.
-from pylal.xlal import inject
 from glue import segments
 import glue.lal
 import lal, lalsimulation
@@ -184,7 +183,7 @@ for sim_inspiral in sim_inspiral_table:
         for signal_model in signal_models])
 
     # Get antenna factors for each detector.
-    F = np.asarray([inject.XLALComputeDetAMResponse(response, ra, dec, 0, gmst)
+    F = np.asarray([lal.ComputeDetAMResponse(response, ra, dec, 0, gmst)
         for response in responses]).T
 
     # Compute TOAs at each detector.
