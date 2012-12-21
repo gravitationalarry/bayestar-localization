@@ -117,7 +117,7 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
 
     double *toas;
     double *toa_variances;
-    double **locations = NULL;
+    const double **locations = NULL;
 
     npy_intp dims[1];
     PyObject *out = NULL, *ret = NULL;
@@ -246,8 +246,8 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     double *toas;
     double complex *snrs;
     double *toa_variances;
-    float **responses = NULL;
-    double **locations = NULL;
+    const float **responses = NULL;
+    const double **locations = NULL;
     double *horizons;
 
     double min_distance, max_distance;
