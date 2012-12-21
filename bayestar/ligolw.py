@@ -22,7 +22,6 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 
 # LIGO-LW XML imports.
-from pylal import llwapp as ligolw_app
 from pylal import ligolw_inspinjfind
 from glue.ligolw import table as ligolw_table
 from pylal import ligolw_thinca
@@ -34,15 +33,20 @@ def sim_and_sngl_inspirals_for_xmldoc(xmldoc):
     (sim_inspiral, (sngl_inspiral, sngl_inspiral, ... sngl_inspiral) tuples from
     found coincidences in a LIGO-LW XML document."""
 
-    # Look up coinc_def ids.
-    coinc_def = ligolw_thinca.InspiralCoincDef
-    coinc_def_id = ligolw_app.get_coinc_def_id(xmldoc, coinc_def.search, coinc_def.search_coinc_type, create_new=False)
-    coinc_def = ligolw_inspinjfind.InspiralSCExactCoincDef
-    sim_coinc_def_id = ligolw_app.get_coinc_def_id(xmldoc, coinc_def.search, coinc_def.search_coinc_type, create_new=False)
-
-    # Look up coinc_table and coinc_map_table.
+    # Look up necessary tables.
     coinc_table = ligolw_table.get_table(xmldoc, lsctables.CoincTable.tableName)
+    coinc_def_table = ligolw_table.get_table(xmldoc, lsctables.CoincDefTable.tableName)
     coinc_map_table = ligolw_table.get_table(xmldoc, lsctables.CoincMapTable.tableName)
+
+    # Look up coinc_def ids.
+    coinc_def_id = coinc_def_table.get_coinc_def_id(
+        ligolw_thinca.InspiralCoincDef.search,
+        ligolw_thinca.InspiralCoincDef.search_coinc_type,
+        create_new=False)
+    sim_coinc_def_id = coinc_def_table.get_coinc_def_id(
+        ligolw_inspinjfind.InspiralSCExactCoincDef.search,
+        ligolw_inspinjfind.InspiralSCExactCoincDef.search_coinc_type,
+        create_new=False)
 
     def events_for_coinc_event_id(coinc_event_id):
         for coinc_map in coinc_map_table:
