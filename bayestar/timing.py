@@ -285,7 +285,7 @@ if __name__ == '__main__':
         snr = np.logspace(0, 2, 20)
         plt.loglog(snr, signal_model.get_toa_uncert(snr), '-o', mew=2, lw=2, mfc='none', mec=color, color=color)
         plt.loglog(snr, signal_model.get_crb_toa_uncert(snr), '--', color=color)
-        plt.annotate(ur"%g—%g $M_\odot$" % mass_pair, (15, signal_model.get_crb_toa_uncert(15)), rotation=-45)
+        plt.annotate(ur"%g—%g $M_\odot$" % (mass1, mass2), (15, signal_model.get_crb_toa_uncert(15)), rotation=-45)
     plt.xlabel("S/N")
     plt.ylabel("TOA uncertainty (s)")
     plt.grid(which='minor')
