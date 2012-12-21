@@ -27,7 +27,6 @@ import lal, lalsimulation
 from scipy import interpolate
 from scipy import linalg
 from scipy import optimize
-from scipy import special
 from .decorator import memoized
 
 
