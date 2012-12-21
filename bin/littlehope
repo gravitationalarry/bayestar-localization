@@ -97,7 +97,6 @@ from glue.ligolw import utils as ligolw_utils
 from glue.ligolw import lsctables
 
 # glue, LAL and pylal imports.
-from pylal.xlal import inject
 from glue import segments
 import glue.lal
 import lal, lalsimulation
