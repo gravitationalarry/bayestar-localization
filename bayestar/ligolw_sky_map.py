@@ -41,7 +41,6 @@ def read_psd_xmldoc(xmldoc):
     """
     from glue.ligolw import ligolw
     from glue.ligolw import param
-    from glue.ligolw import utils
     from pylal import datatypes as laltypes
     from pylal import series as lalseries
 
