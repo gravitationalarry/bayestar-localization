@@ -23,15 +23,64 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 import time
 import numpy as np
+from . import filter
 from . import timing
 from . import sky_map
 from pylal import date
 import lal, lalsimulation
+from glue.ligolw import ligolw
+from glue.ligolw import array as ligolw_array
+from glue.ligolw import param as ligolw_param
 
 
-# Copied and adapted from gstlal.reference_psd.read_psd_xmldoc.
-# FIXME: remove this when read_psd_xmldoc is available in releases of gstlal
-# that are installed on all clusters.
+# Copied and adapted from pylal.series.parse_REAL8FrequencySeries.
+def parse_REAL8FrequencySeries(elem):
+    t, = elem.getElementsByTagName(ligolw.Time.tagName)
+    a, = elem.getElementsByTagName(ligolw.Array.tagName)
+    dims = a.getElementsByTagName(ligolw.Dim.tagName)
+    f0 = ligolw_param.get_param(elem, u"f0")
+
+    epoch = lal.LIGOTimeGPS()
+    lal.StrToGPS(epoch, str(t.pcdata))
+
+    # Target units: inverse seconds
+    inverse_seconds_unit = lal.Unit()
+    lal.ParseUnitString(inverse_seconds_unit, "s^-1")
+
+    # Parse units of f0 field
+    f0_unit = lal.Unit()
+    lal.ParseUnitString(f0_unit, str(f0.get_unit()))
+
+    # Parse units of deltaF field
+    deltaF_unit = lal.Unit()
+    lal.ParseUnitString(deltaF_unit, str(dims[0].getAttribute(u"Unit")))
+
+    # Parse units of data
+    sample_unit = lal.Unit()
+    lal.ParseUnitString(sample_unit, str(a.getAttribute(u"Unit")))
+
+    # Parse data
+    data = a.array[1]
+
+    # Initialize data structure
+    series = lal.CreateREAL8FrequencySeries(
+        str(a.getAttribute(u"Name")),
+        epoch,
+        float(f0.pcdata) * lal.UnitRatio(f0_unit, inverse_seconds_unit),
+        float(dims[0].getAttribute(u"Scale")) * lal.UnitRatio(deltaF_unit, inverse_seconds_unit),
+        sample_unit,
+        len(data)
+    )
+
+    # Copy data
+    series.data.data = data
+
+    # Done!
+    return series
+# End section copied and adapted from pylal.series.parse_REAL8FrequencySeries.
+
+
+# Copied and adapted from pylal.series.read_psd_xmldoc.
 def read_psd_xmldoc(xmldoc):
     """
     Parse a dictionary of PSD frequency series objects from an XML
@@ -39,17 +88,18 @@ def read_psd_xmldoc(xmldoc):
     from a dictionary of PSDs.  Interprets an empty freuency series for an
     instrument as None.
     """
-    from glue.ligolw import ligolw
-    from glue.ligolw import param
-    from pylal import series as lalseries
-
-    out = dict((param.get_pyvalue(elem, u"instrument"), lalseries.parse_REAL8FrequencySeries(elem)) for elem in xmldoc.getElementsByTagName(ligolw.LIGO_LW.tagName) if elem.hasAttribute(u"Name") and elem.getAttribute(u"Name") == u"REAL8FrequencySeries")
+    out = dict(
+        (ligolw_param.get_pyvalue(elem, u"instrument"),
+        parse_REAL8FrequencySeries(elem))
+        for elem in xmldoc.getElementsByTagName(ligolw.LIGO_LW.tagName)
+        if elem.hasAttribute(u"Name")
+        and elem.getAttribute(u"Name") == u"REAL8FrequencySeries")
     # Interpret empty frequency series as None
     for k in out:
-        if len(out[k].data) == 0:
+        if len(out[k].data.data) == 0:
             out[k] = None
     return out
-# End section copied and adapted from gstlal.reference_psd.read_psd_xmldoc.
+# End section copied and adapted from pylal.series.read_psd_xmldoc.
 
 
 def complex_from_polar(r, phi):
@@ -170,7 +220,7 @@ def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance, max_dis
     psds = [psds[sngl_inspiral.ifo] for sngl_inspiral in sngl_inspirals]
 
     # Interpolate PSDs.
-    psds = [timing.interpolate_psd(psd.f0 + np.arange(len(psd.data)) * psd.deltaF, psd.data) for psd in psds]
+    psds = [timing.interpolate_psd(filter.abscissa(psd), psd.data.data) for psd in psds]
 
     # TOA+SNR sky localization
     return ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
