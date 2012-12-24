@@ -30,17 +30,23 @@ opts, args = OptionParser(usage = "%prog [options] [GRACEID]",
     option_list = []
 ).parse_args()
 
-# Late imports
 
-import io
-import os
-import sys
-import shutil
-import time
+#
+# Late imports
+#
+
 from cStringIO import StringIO
-import tempfile
-import bayestar.io
+import io
+import logging
+import os
+import shutil
 import subprocess
+import sys
+import tempfile
+import time
+
+import bayestar.io
+import ligo.gracedb.logger
 import ligo.gracedb.rest
 import ligo.lvalert.utils
 
@@ -49,31 +55,8 @@ import ligo.lvalert.utils
 # Logging
 #
 
-import logging
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('BAYESTAR')
-
-class GraceDbLogStream(object):
-    def __init__(self, gracedb, graceid):
-        self.gracedb = gracedb
-        self.graceid = graceid
-    def flush(self):
-        pass
-    def write(self, text):
-        self.gracedb.writeLog(self.graceid, text)
-
-class GraceDbLogFormatter(logging.Formatter):
-    def __init__(self):
-        logging.Formatter.__init__(self, logging.BASIC_FORMAT)
-    def format(self, record):
-        s = logging.Formatter.format(self, record)
-        return '<div style="white-space:pre-wrap">' + s.strip("\n") + '</div>'
-
-class GraceDbLogHandler(logging.StreamHandler):
-    def __init__(self, gracedb, graceid):
-        stream = GraceDbLogStream(gracedb, graceid)
-        logging.StreamHandler.__init__(self, stream)
-        self.formatter = GraceDbLogFormatter()
 
 
 #
@@ -93,6 +76,7 @@ def wait_for_download(gracedb, graceid, filename):
         else:
             log.info('%s:downloaded', filename)
             return fileobj
+
 
 #
 # Parse input
@@ -119,7 +103,7 @@ if alert_type == 'new':
     gracedb = ligo.gracedb.rest.GraceDb()
 
     # Send log messages to GraceDb too
-    logging.root.addHandler(GraceDbLogHandler(gracedb, graceid))
+    logging.root.addHandler(ligo.gracedb.logger.GraceDbLogHandler(gracedb, graceid))
 
     # Produce log message for any otherwise uncaught exception
     try:
