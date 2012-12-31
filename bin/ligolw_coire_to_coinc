@@ -9,11 +9,11 @@
 #
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
-# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.	See the
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.    See the
 # GNU General Public License for more details.
 #
 # You should have received a copy of the GNU General Public License
-# along with this program.	If not, see <http://www.gnu.org/licenses/>.
+# along with this program.    If not, see <http://www.gnu.org/licenses/>.
 #
 from __future__ import division
 """
@@ -25,21 +25,21 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 # Command line interface.
 from optparse import Option, OptionParser
 parser = OptionParser(description=__doc__,
-	usage="%prog [options] [INPUT.xml[.gz]]",
-	option_list = [
-		Option("-o", "--output", metavar="OUTPUT.xml[.gz]", default="/dev/stdout",
-			help="Name of output file (default=stdout)")
-	]
+    usage="%prog [options] [INPUT.xml[.gz]]",
+    option_list = [
+        Option("-o", "--output", metavar="OUTPUT.xml[.gz]", default="/dev/stdout",
+            help="Name of output file (default=stdout)")
+    ]
 )
 opts, args = parser.parse_args()
 
 # Determine if input will come from a named file or from stdin.
 if len(args) == 0:
-	infilename = '/dev/stdin'
+    infilename = '/dev/stdin'
 elif len(args) == 1:
-	infilename = args[0]
+    infilename = args[0]
 else:
-	parser.error("Too many command line arguments.")
+    parser.error("Too many command line arguments.")
 
 
 # Python standard library imports.
@@ -67,18 +67,18 @@ xmldoc = ligolw_utils.load_filename(infilename)
 
 # Write process metadata to output file.
 process = ligolw_process.register_to_xmldoc(xmldoc, parser.get_prog_name(),
-	opts.__dict__, ifos=[], comment="Converted from coire file")
+    opts.__dict__, ifos=[], comment="Converted from coire file")
 
 def get_or_create_table(xmldoc, table_class):
-	tables = ligolw_table.getTablesByName(xmldoc, table_class.tableName)
-	if len(tables) == 0:
-		table = lsctables.New(table_class)
-		xmldoc.childNodes[0].appendChild(table)
-	elif len(tables) == 1:
-		table = tables[0]
-	else:
-		raise ValueError("Document has more than one table of that type")
-	return table
+    tables = ligolw_table.getTablesByName(xmldoc, table_class.tableName)
+    if len(tables) == 0:
+        table = lsctables.New(table_class)
+        xmldoc.childNodes[0].appendChild(table)
+    elif len(tables) == 1:
+        table = tables[0]
+    else:
+        raise ValueError("Document has more than one table of that type")
+    return table
 
 # Locate or create tables.
 sngl_inspiral_table = ligolw_table.get_table(xmldoc, lsctables.SnglInspiralTable.tableName)
@@ -102,54 +102,54 @@ time_slide_id = lsctables.TimeSlideID(0)
 
 key = attrgetter("event_id")
 for (_, sngl_inspirals), sim_inspiral in izip(groupby(sngl_inspiral_table, key), sim_inspiral_table):
-	sngl_inspirals = list(sngl_inspirals)
-	ifos = set(sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals)
+    sngl_inspirals = list(sngl_inspirals)
+    ifos = set(sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals)
 
-	coinc = lsctables.Coinc()
-	coinc.coinc_event_id = coinc_table.get_next_id()
-	coinc.process_id = process.process_id
-	coinc.coinc_def_id = sngl_sngl_coinc_def_id
-	coinc.time_slide_id = time_slide_id
-	coinc.set_instruments(ifos)
-	coinc.nevents = len(sngl_inspirals)
-	coinc.likelihood = None
-	coinc_table.append(coinc)
+    coinc = lsctables.Coinc()
+    coinc.coinc_event_id = coinc_table.get_next_id()
+    coinc.process_id = process.process_id
+    coinc.coinc_def_id = sngl_sngl_coinc_def_id
+    coinc.time_slide_id = time_slide_id
+    coinc.set_instruments(ifos)
+    coinc.nevents = len(sngl_inspirals)
+    coinc.likelihood = None
+    coinc_table.append(coinc)
 
-	for sngl_inspiral in sngl_inspirals:
-		sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
-		coinc_map = lsctables.CoincMap()
-		coinc_map.coinc_event_id = coinc.coinc_event_id
-		coinc_map.table_name = sngl_inspiral_table.tableName
-		coinc_map.event_id = sngl_inspiral.event_id
-		coinc_map_table.append(coinc_map)
+    for sngl_inspiral in sngl_inspirals:
+        sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
+        coinc_map = lsctables.CoincMap()
+        coinc_map.coinc_event_id = coinc.coinc_event_id
+        coinc_map.table_name = sngl_inspiral_table.tableName
+        coinc_map.event_id = sngl_inspiral.event_id
+        coinc_map_table.append(coinc_map)
 
-	sngls_coinc_event_id = coinc.coinc_event_id
+    sngls_coinc_event_id = coinc.coinc_event_id
 
-	coinc = lsctables.Coinc()
-	coinc.coinc_event_id = coinc_table.get_next_id()
-	coinc.process_id = process.process_id
-	coinc.coinc_def_id = sngl_coinc_coinc_def_id
-	coinc.time_slide_id = time_slide_id
-	coinc.set_instruments(ifos)
-	coinc.nevents = 2
-	coinc.likelihood = None
-	coinc_table.append(coinc)
+    coinc = lsctables.Coinc()
+    coinc.coinc_event_id = coinc_table.get_next_id()
+    coinc.process_id = process.process_id
+    coinc.coinc_def_id = sngl_coinc_coinc_def_id
+    coinc.time_slide_id = time_slide_id
+    coinc.set_instruments(ifos)
+    coinc.nevents = 2
+    coinc.likelihood = None
+    coinc_table.append(coinc)
 
-	coinc_map = lsctables.CoincMap()
-	coinc_map.coinc_event_id = coinc.coinc_event_id
-	coinc_map.table_name = coinc_table.tableName
-	coinc_map.event_id = sngls_coinc_event_id
-	coinc_map_table.append(coinc_map)
+    coinc_map = lsctables.CoincMap()
+    coinc_map.coinc_event_id = coinc.coinc_event_id
+    coinc_map.table_name = coinc_table.tableName
+    coinc_map.event_id = sngls_coinc_event_id
+    coinc_map_table.append(coinc_map)
 
-	coinc_map = lsctables.CoincMap()
-	coinc_map.coinc_event_id = coinc.coinc_event_id
-	coinc_map.table_name = sim_inspiral_table.tableName
-	coinc_map.event_id = sim_inspiral.simulation_id
-	coinc_map_table.append(coinc_map)
+    coinc_map = lsctables.CoincMap()
+    coinc_map.coinc_event_id = coinc.coinc_event_id
+    coinc_map.table_name = sim_inspiral_table.tableName
+    coinc_map.event_id = sim_inspiral.simulation_id
+    coinc_map_table.append(coinc_map)
 
 # Record process end time.
 ligolw_process.set_process_end_time(process)
 
 # Write output file.
 ligolw_utils.write_filename(xmldoc, opts.output,
-	gz=(os.path.splitext(opts.output)[-1]==".gz"))
+    gz=(os.path.splitext(opts.output)[-1]==".gz"))

@@ -32,7 +32,7 @@ parser = OptionParser(
     description = __doc__,
     usage="%prog [options] [INPUT.xml[.gz]] [-o OUTPUT.xml[.gz]]",
     option_list = [
-	Option("--approximant"),
+    Option("--approximant"),
         Option("-o", "--output", metavar="OUTPUT.xml[.gz]", default="/dev/stdout",
             help="Name of output file (default=stdout)")
     ]
@@ -95,7 +95,7 @@ sngl_inspiral_table.set_next_id(lsctables.SnglInspiralID(0))
 
 sngl_inspiral = lsctables.SnglInspiral()
 for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
-	setattr(sngl_inspiral, validcolumn, None)
+    setattr(sngl_inspiral, validcolumn, None)
 sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
 sngl_inspiral.mass1 = sim_inspiral.mass1
 sngl_inspiral.mass2 = sim_inspiral.mass2
