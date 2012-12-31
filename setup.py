@@ -48,6 +48,7 @@ setup(
                 library_dirs=healpix_library_dirs,
                 libraries=['cfitsio', 'chealpix'],
                 extra_compile_args=['-std=c99'],
+                define_macros=[('HAVE_INLINE', None)],
                 openmp=True
             ))
         )
