@@ -26,7 +26,6 @@ import numpy as np
 from . import filter
 from . import timing
 from . import sky_map
-from pylal import date
 import lal, lalsimulation
 from glue.ligolw import ligolw
 from glue.ligolw import array as ligolw_array
@@ -125,7 +124,7 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
 
     # Extract TOAs from table.
     toas_ns = np.asarray([sngl_inspiral.get_end().ns()
-        for sngl_inspiral in sngl_inspirals])
+        for sngl_inspiral in sngl_inspirals], dtype=np.int64)
 
     # Optionally apply reference frequency shift.
     if reference_frequency is not None:
@@ -141,8 +140,9 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
 
     # Find average Greenwich mean sidereal time of event.
     mean_toa_ns = sum(toas_ns) // len(toas_ns)
-    epoch = date.XLALINT8NSToGPS(mean_toa_ns)
-    gmst = date.XLALGreenwichMeanSiderealTime(epoch)
+    epoch = lal.LIGOTimeGPS()
+    lal.INT8NSToGPS(epoch, long(mean_toa_ns))
+    gmst = lal.GreenwichMeanSiderealTime(epoch)
 
     # Power spectra for each detector.
     if psds is None:
