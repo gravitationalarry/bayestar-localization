@@ -38,12 +38,6 @@
 #include "logaddexp.h"
 
 
-static double square(double a)
-{
-    return a * a;
-}
-
-
 /* Return indices of sorted pixels from greatest to smallest. */
 static gsl_permutation *get_pixel_ranks(long npix, double *P)
 {
@@ -460,10 +454,10 @@ double *bayestar_sky_map_tdoa_snr(
                 {
                     const double Fp = F[iifo][0]; /* `plus' antenna factor times r */
                     const double Fx = F[iifo][1]; /* `cross' antenna factor times r */
-                    const double FpFp = square(Fp);
-                    const double FxFx = square(Fx);
+                    const double FpFp = gsl_pow_2(Fp);
+                    const double FxFx = gsl_pow_2(Fx);
                     const double FpFx = Fp * Fx;
-                    const double rhotimesr2 = 0.125 * ((FpFp + FxFx) * (1 + 6*u2 + u4) + square(1 - u2) * ((FpFp - FxFx) * costwopsi + 2 * FpFx * sintwopsi));
+                    const double rhotimesr2 = 0.125 * ((FpFp + FxFx) * (1 + 6*u2 + u4) + gsl_pow_2(1 - u2) * ((FpFp - FxFx) * costwopsi + 2 * FpFx * sintwopsi));
                     const double rhotimesr = sqrt(rhotimesr2);
 
                     /* FIXME: due to roundoff, rhotimesr2 can be very small and
@@ -498,7 +492,7 @@ double *bayestar_sky_map_tdoa_snr(
                 {
                     /* Perform adaptive integration. Stop when a relative
                      * accuracy of 0.05 has been reached. */
-                    inner_integrand_params integrand_params = {A, B, -0.25 * square(B) / A};
+                    inner_integrand_params integrand_params = {A, B, -0.25 * gsl_pow_2(B) / A};
                     const gsl_function func = {radial_integrand, &integrand_params};
                     double result, abserr;
                     int ret = gsl_integration_qagp(&func, &breakpoints[0], num_breakpoints, DBL_MIN, 0.05, subdivision_limit, workspace, &result, &abserr);
