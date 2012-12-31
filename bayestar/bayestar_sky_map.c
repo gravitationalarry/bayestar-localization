@@ -27,6 +27,7 @@
 
 #include <chealpix.h>
 
+#include <gsl/gsl_cblas.h>
 #include <gsl/gsl_errno.h>
 #include <gsl/gsl_integration.h>
 #include <gsl/gsl_sf_bessel.h>
@@ -40,14 +41,6 @@
 static double square(double a)
 {
     return a * a;
-}
-
-
-/* Copied from lal's TimeDelay.c */
-/* scalar product of two 3-vectors */
-static double dotprod(const double vec1[3], const double vec2[3])
-{
-    return vec1[0] * vec2[0] + vec1[1] * vec2[1] + vec1[2] * vec2[2];
 }
 
 
@@ -153,7 +146,7 @@ static int bayestar_sky_map_tdoa_not_normalized_log(
         /* Loop over detectors. */
         double dt[nifos];
         for (j = 0; j < nifos; j ++)
-            dt[j] = t[j] + dotprod(n, locs[j]) / LAL_C_SI;
+            dt[j] = t[j] + cblas_ddot(3, n, 1, locs[j], 1) / LAL_C_SI;
 
         /* Evaluate the (un-normalized) Gaussian log likelihood. */
         P[i] = -0.5 * gsl_stats_wtss(w, 1, dt, 1, nifos);
