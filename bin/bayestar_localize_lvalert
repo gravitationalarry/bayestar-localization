@@ -36,14 +36,15 @@ opts, args = OptionParser(usage = "%prog [options] [GRACEID]",
 #
 
 from cStringIO import StringIO
+import json
 import io
 import logging
 import os
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
+import urlparse
 
 import bayestar.io
 import ligo.gracedb.logger
@@ -123,8 +124,17 @@ if alert_type == 'new':
         try:
             fitspath = os.path.join(fitsdir, "skymap.fits.gz")
             bayestar.io.write_skymap(fitspath, skymap=sky_map, gps=float(epoch))
-            # FIXME: use REST interface once it supports gzipped files
-            subprocess.check_call(["gracedb", "upload", graceid, fitspath])
+            response = gracedb.writeFile(graceid, fitspath)
+            response_json = response.read()
+            attrs = json.loads(response_json)
+            permalink_url = attrs['permalink']
+            permalink_path = urlparse.urlparse(permalink_url).path
+            permalink_filename = os.path.basename(permalink_path)
+
+            # FIXME: the 'permalink' URL does not work in a browser; use this
+            # hardcoded URL base instead
+            permalink_url = 'https://ldas-jobs.phys.uwm.edu/gracedb/data/T62876/private/' + permalink_filename
+            log.info('uploaded sky map: <a href="%s">%s</a>', permalink_url, permalink_filename)
         finally:
             shutil.rmtree(fitsdir)
 
