@@ -147,7 +147,8 @@ static int bayestar_sky_map_tdoa_not_normalized_log(
         phi -= gmst;
 
         /* Convert to Cartesian coordinates. */
-        const double n[] = {sin(theta) * cos(phi), sin(theta) * sin(phi), cos(theta)};
+        double n[3];
+        ang2vec(theta, phi, n);
 
         /* Loop over detectors. */
         double dt[nifos];
