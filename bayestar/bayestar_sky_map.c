@@ -462,7 +462,7 @@ double *bayestar_sky_map_tdoa_snr(
 
                     /* FIXME: due to roundoff, rhotimesr2 can be very small and
                      * negative rather than simply zero. If this happens, don't
-                     accumulate the log-likelihood terms for this dietector. */
+                     accumulate the log-likelihood terms for this detector. */
                     if (rhotimesr2 > 0)
                     {
                         A += rhotimesr2;
