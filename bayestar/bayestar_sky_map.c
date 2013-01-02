@@ -256,24 +256,24 @@ typedef struct {
 
 
 /* Radial integrand for uniform-in-log-distance prior. */
-static double radial_integrand_uniform_in_log_distance(double log_r, void *params)
+static double radial_integrand_uniform_in_log_distance(double r, void *params)
 {
     const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
 
-    const double onebyr = exp(-log_r);
+    const double onebyr = 1 / r;
     const double onebyr2 = gsl_pow_2(onebyr);
-    return exp(integrand_params->A * onebyr2 + integrand_params->B * onebyr - integrand_params->log_offset);
+    return exp(integrand_params->A * onebyr2 + integrand_params->B * onebyr - integrand_params->log_offset) * onebyr;
 }
 
 
 /* Radial integrand for uniform-in-volume prior. */
-static double radial_integrand_uniform_in_volume(double log_r, void *params)
+static double radial_integrand_uniform_in_volume(double r, void *params)
 {
     const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
 
-    const double onebyr = exp(-log_r);
+    const double onebyr = 1 / r;
     const double onebyr2 = gsl_pow_2(onebyr);
-    return exp(integrand_params->A * onebyr2 + integrand_params->B * onebyr - integrand_params->log_offset + 3 * log_r);
+    return exp(integrand_params->A * onebyr2 + integrand_params->B * onebyr - integrand_params->log_offset) * gsl_pow_2(r);
 }
 
 
@@ -472,7 +472,6 @@ double *bayestar_sky_map_tdoa_snr(
                 A *= -0.5;
 
                 {
-                    int i_breakpoint;
                     const double middle_breakpoint = -2 * A / B;
                     const double lower_breakpoint = 1 / (1 / middle_breakpoint + sqrt(log(eta) / A));
                     const double upper_breakpoint = 1 / (1 / middle_breakpoint - sqrt(log(eta) / A));
@@ -484,9 +483,6 @@ double *bayestar_sky_map_tdoa_snr(
                     if(upper_breakpoint > breakpoints[num_breakpoints-1] && upper_breakpoint < max_distance)
                         breakpoints[num_breakpoints++] = upper_breakpoint;
                     breakpoints[num_breakpoints++] = max_distance;
-
-                    for (i_breakpoint = 0; i_breakpoint < num_breakpoints; i_breakpoint ++)
-                        breakpoints[i_breakpoint] = log(breakpoints[i_breakpoint]);
                 }
 
                 {
