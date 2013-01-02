@@ -261,7 +261,7 @@ static double radial_integrand_uniform_in_log_distance(double log_r, void *param
     const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
 
     const double onebyr = exp(-log_r);
-    const double onebyr2 = onebyr * onebyr;
+    const double onebyr2 = gsl_pow_2(onebyr);
     return exp(integrand_params->A * onebyr2 + integrand_params->B * onebyr - integrand_params->log_offset);
 }
 
@@ -272,7 +272,7 @@ static double radial_integrand_uniform_in_volume(double log_r, void *params)
     const inner_integrand_params *integrand_params = (const inner_integrand_params *) params;
 
     const double onebyr = exp(-log_r);
-    const double onebyr2 = onebyr * onebyr;
+    const double onebyr2 = gsl_pow_2(onebyr);
     return exp(integrand_params->A * onebyr2 + integrand_params->B * onebyr - integrand_params->log_offset + 3 * log_r);
 }
 
