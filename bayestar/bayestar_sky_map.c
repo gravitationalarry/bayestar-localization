@@ -427,8 +427,8 @@ double *bayestar_sky_map_tdoa_snr(
             for (iu = 0; iu <= nu; iu++)
             {
                 const double u = (double)iu / nu;
-                const double u2 = u * u;
-                const double u4 = u2 * u2;
+                const double u2 = gsl_pow_2(u);
+                const double u4 = gsl_pow_2(u2);
 
                 double A = 0, B = 0;
                 double breakpoints[5];
