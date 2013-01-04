@@ -47,7 +47,7 @@ import time
 import urlparse
 
 import bayestar.io
-import ligo.gracedb.logger
+import ligo.gracedb.logging
 import ligo.gracedb.rest
 import ligo.lvalert.utils
 
@@ -104,7 +104,7 @@ if alert_type == 'new':
     gracedb = ligo.gracedb.rest.GraceDb()
 
     # Send log messages to GraceDb too
-    logging.root.addHandler(ligo.gracedb.logger.GraceDbLogHandler(gracedb, graceid))
+    logging.root.addHandler(ligo.gracedb.logging.GraceDbLogHandler(gracedb, graceid))
 
     # Produce log message for any otherwise uncaught exception
     try:
