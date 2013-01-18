@@ -20,3 +20,10 @@ Dependencies
  - Glue <https://www.lsc-group.phys.uwm.edu/daswg/projects/glue.html>
  - GraceDb <https://www.lsc-group.phys.uwm.edu/daswg/projects/gracedb.html>,
    for optional integration with LIGO's GraceDb and LValert
+
+Debian packaging
+================
+
+To build the Debian package, run `sudo apt-get install python-stdeb' and then
+run 'python setup.py bdist_deb'.
+
