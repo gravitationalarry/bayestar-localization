@@ -34,7 +34,7 @@ else:
 
 setup(
     name='bayestar-localization',
-    version='0.0.2',
+    version='0.0.3',
     author='Leo Singer',
     author_email='leo.singer@ligo.org',
     license='GNU General Public License Version 3',
