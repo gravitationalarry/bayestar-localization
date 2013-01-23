@@ -16,7 +16,7 @@
 #
 
 
-from distutils.core import setup
+from setuptools import setup
 from misc import *
 from misc.distutils_openmp import *
 import numpy as np
@@ -34,11 +34,12 @@ else:
 
 setup(
     name='bayestar-localization',
-    version='0.0.3',
+    version='0.0.4',
     author='Leo Singer',
     author_email='leo.singer@ligo.org',
     license='GNU General Public License Version 3',
     requires=['bayestar', 'healpy', 'numpy', 'glue', 'pylal', 'lal', 'lalsimulation'],
+    namespace_packages=['bayestar'],
     packages=['bayestar'],
     ext_modules=[
         Extension('bayestar.sky_map', ['bayestar/sky_map.c', 'bayestar/bayestar_sky_map.c'],
