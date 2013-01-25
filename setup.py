@@ -18,7 +18,7 @@
 
 from setuptools import setup
 from misc import *
-from misc.distutils_openmp import *
+from misc.setuptools_openmp import *
 import numpy as np
 import os
 
