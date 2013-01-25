@@ -109,8 +109,8 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
     """Convenience function to produce a sky map from LIGO-LW rows. Note that
     min_distance and max_distance should be in Mpc."""
 
-    if method == "toa_snr" and (min_distance is None or max_distance is None or prior is None):
-        raise ValueError("For method='toa_snr', the arguments min_distance, max_distance, and prior are required.")
+    if method == "toa_snr" and prior is None:
+        raise ValueError("For method='toa_snr', the argument prior is required.")
 
     ifos = [sngl_inspiral.ifo for sngl_inspiral in sngl_inspirals]
 
@@ -167,6 +167,16 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
     responses = [det.response for det in detectors]
     locations = [det.location for det in detectors]
 
+    # Use half the minimum effective distance as the default value for
+    # min_distance and twice the maximum effective distance as the default
+    # value for max_distance.
+    if min_distance is None or max_distance is None:
+        effective_distances = np.asarray(horizons) / np.abs(snrs)
+        if min_distance is None:
+            min_distance = 0.5 * min(effective_distances)
+        if max_distance is None:
+            max_distance = 2 * max(effective_distances)
+
     # Time and run sky localization.
     start_time = time.time()
     if method == "toa":
@@ -184,7 +194,7 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
     return prob, epoch, elapsed_time
 
 
-def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance, max_distance, prior, reference_frequency=None, nside=-1):
+def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance=None, max_distance=None, prior=None, reference_frequency=None, nside=-1):
     # LIGO-LW XML imports.
     from glue.ligolw import table as ligolw_table
     from glue.ligolw import utils as ligolw_utils

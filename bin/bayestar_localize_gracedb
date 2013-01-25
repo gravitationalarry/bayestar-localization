@@ -24,6 +24,10 @@ A string naming the kind of prior -- "uniform in log distance" or
 minimum and maximum distance. The filename of the (optionally gzip-compressed)
 LIGO-LW XML input is an optional argument; if omitted, input is read from stdin.
 
+If the --min-distance argument is omitted, it defaults to half the minimum
+effective distance among all of the detectors. If the --max-distance argument
+is omitted, it defaults to twice the maximum effective distance among detectors.
+
 Output is an optionally gzip-compressed HEALPix FITS file, whose filename is
 provided by the required "-o" or "--output" argument.
 """
@@ -39,7 +43,7 @@ from bayestar import command
 parser = OptionParser(
     formatter = command.NewlinePreservingHelpFormatter(),
     description = __doc__,
-    usage = '%prog [options] --min-distance Mpc --max-distance Mpc --prior "uniform in log distance"|"uniform in volume" [INPUT.xml[.gz]] --psd PSD.xml[.gz] -o OUTPUT.fits[.gz]',
+    usage = '%prog [options] --prior "uniform in log distance"|"uniform in volume" [INPUT.xml[.gz]] --psd PSD.xml[.gz] -o OUTPUT.fits[.gz]',
     option_list = [
         Option("--nside", "-n", type=int, default=-1,
             help="HEALPix lateral resolution (default=auto)"),
@@ -48,9 +52,9 @@ parser = OptionParser(
         Option("--waveform", default="TaylorF2threePointFivePN",
             help="Waveform to use for determining parameter estimation accuracy from signal model (default=TaylorF2threePointFivePN)"),
         Option("--min-distance", type=float, metavar="Mpc",
-            help="Minimum distance of prior in megaparsecs (required)"),
+            help="Minimum distance of prior in megaparsecs"),
         Option("--max-distance", type=float, metavar="Mpc",
-            help="Maximum distance prior in megaparsecs (required)"),
+            help="Maximum distance prior in megaparsecs"),
         Option("--prior", choices=prior_choices, metavar="|".join(prior_choices),
             help="Distance prior (required)"),
         Option("--reference-frequency", type=float, metavar="Hz",
@@ -69,7 +73,7 @@ elif len(args) == 1:
     infilename = args[0]
 else:
     parser.error("Too many command line arguments")
-for key in ("min_distance", "max_distance", "prior", "psd", "output"):
+for key in ("prior", "psd", "output"):
     if getattr(opts, key) is None:
         parser.error("Missing required argument: --" + key.replace("_", "-"))
 

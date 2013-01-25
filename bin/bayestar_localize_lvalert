@@ -116,7 +116,7 @@ if alert_type == 'new':
         # perform sky localization
         from bayestar.ligolw_sky_map import gracedb_sky_map
         log.info("starting sky localization")
-        sky_map, epoch, elapsed_time = gracedb_sky_map(coinc_file, psd_file, "TaylorF2threePointFivePN", 10, 100, 200, "uniform in log distance")
+        sky_map, epoch, elapsed_time = gracedb_sky_map(coinc_file, psd_file, "TaylorF2threePointFivePN", 10, prior="uniform in log distance")
         log.info("sky localization complete")
 
         # upload FITS file

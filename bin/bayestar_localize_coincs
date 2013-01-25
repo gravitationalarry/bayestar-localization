@@ -24,6 +24,10 @@ A string naming the kind of prior -- "uniform in log distance" or
 minimum and maximum distance. The filename of the (optionally gzip-compressed)
 LIGO-LW XML input is an optional argument; if omitted, input is read from stdin.
 
+If the --min-distance argument is omitted, it defaults to half the minimum
+effective distance among all of the detectors. If the --max-distance argument
+is omitted, it defaults to twice the maximum effective distance among detectors.
+
 Output consists of two text files, "toa.out" and "toa_snr.out", which contain
 statistics about the TOA-only sky maps and the TOA-and-SNR sky maps
 respectively. The columns are:
@@ -52,7 +56,7 @@ from bayestar import command
 parser = OptionParser(
     formatter = command.NewlinePreservingHelpFormatter(),
     description = __doc__,
-    usage = '%prog [options] --min-distance Mpc --max-distance Mpc --prior "uniform in log distance"|"uniform in volume" [INPUT.xml[.gz]]',
+    usage = '%prog [options] --prior "uniform in log distance"|"uniform in volume" [INPUT.xml[.gz]]',
     option_list = [
         Option("--nside", "-n", type=int, default=-1,
             help="HEALPix lateral resolution (default=auto)"),
@@ -61,9 +65,9 @@ parser = OptionParser(
         Option("--waveform",
             help="Waveform to use for determining parameter estimation accuracy from signal model (default=inherit from sim_inspirals)"),
         Option("--min-distance", type=float, metavar="Mpc",
-            help="Minimum distance of prior in megaparsecs (required)"),
+            help="Minimum distance of prior in megaparsecs"),
         Option("--max-distance", type=float, metavar="Mpc",
-            help="Maximum distance prior in megaparsecs (required)"),
+            help="Maximum distance prior in megaparsecs"),
         Option("--prior", choices=prior_choices, metavar="|".join(prior_choices),
             help="Distance prior (required)"),
         Option("--reference-frequency", type=float, metavar="Hz",
@@ -77,10 +81,6 @@ if len(args) > 0:
 else:
     infilename = '/dev/stdin'
 
-if opts.min_distance is None:
-    parser.error("Missing required argument --min-distance")
-if opts.max_distance is None:
-    parser.error("Missing required argument --max-distance")
 if opts.prior is None:
     parser.error("Missing required argument --prior")
 
