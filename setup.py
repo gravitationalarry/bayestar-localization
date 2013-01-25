@@ -37,6 +37,7 @@ setup(
     version='0.0.5',
     author='Leo Singer',
     author_email='leo.singer@ligo.org',
+    description='Rapid Bayesian sky maps for gravitational wave inspirals',
     license='GNU General Public License Version 3',
     requires=['bayestar', 'healpy', 'numpy', 'glue', 'pylal', 'lal', 'lalsimulation'],
     namespace_packages=['bayestar'],
