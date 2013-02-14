@@ -34,7 +34,7 @@ else:
 
 setup(
     name='bayestar-localization',
-    version='0.0.5',
+    version='0.0.6',
     author='Leo Singer',
     author_email='leo.singer@ligo.org',
     description='Rapid Bayesian sky maps for gravitational wave inspirals',
