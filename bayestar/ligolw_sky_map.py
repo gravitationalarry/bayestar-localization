@@ -230,7 +230,7 @@ def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance=None, ma
     psds = [psds[sngl_inspiral.ifo] for sngl_inspiral in sngl_inspirals]
 
     # Interpolate PSDs.
-    psds = [timing.interpolate_psd(filter.abscissa(psd), psd.data.data) for psd in psds]
+    psds = [timing.InterpolatedPSD(filter.abscissa(psd), psd.data.data) for psd in psds]
 
     # TOA+SNR sky localization
     return ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_low,

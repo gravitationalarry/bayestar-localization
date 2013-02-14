@@ -22,12 +22,16 @@ Functions for predicting timing accuracy of matched filters.
 __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 
+import logging
 import numpy as np
 import lal, lalsimulation
 from scipy import interpolate
 from scipy import linalg
 from scipy import optimize
 from .decorator import memoized
+
+
+log = logging.getLogger('BAYESTAR')
 
 
 def get_f_lso(mass1, mass2):
@@ -68,11 +72,24 @@ def get_noise_psd_func(ifo):
     return _noise_psd_funcs[ifo]
 
 
-def interpolate_psd(f, S):
+class InterpolatedPSD(interpolate.interp1d):
     """Create a (linear in log-log) interpolating function for a discretely
     sampled power spectrum S(f)."""
-    func = interpolate.interp1d(np.log(f), np.log(S))
-    return (lambda f: np.exp(func(np.log(f))))
+
+    def __init__(self, f, S):
+        super(InterpolatedPSD, self).__init__(np.log(f), np.log(S),
+            kind='linear', bounds_error=False, fill_value=np.inf)
+        self._f_min = min(f)
+        self._f_max = max(f)
+
+    def __call__(self, f):
+        f_min = np.min(f)
+        f_max = np.max(f)
+        if f_min < self._f_min:
+            log.warn("Assuming PSD is infinite at %g Hz because PSD is only sampled down to %g Hz", f_min, self._f_min)
+        if f_max > self._f_max:
+            log.warn("Assuming PSD is infinite at %g Hz because PSD is only sampled up to %g Hz", f_max, self._f_max)
+        return np.exp(super(InterpolatedPSD, self).__call__(np.log(f)))
 
 
 def sign(x):
