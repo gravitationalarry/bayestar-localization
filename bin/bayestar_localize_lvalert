@@ -133,8 +133,7 @@ if alert_type == 'new':
 
             # FIXME: the 'permalink' URL does not work in a browser; use this
             # hardcoded URL base instead
-            permalink_url = 'https://ldas-jobs.phys.uwm.edu/gracedb/data/T62876/private/' + permalink_filename
-            log.info('uploaded sky map: <a href="%s">%s</a>', permalink_url, permalink_filename)
+            log.info('uploaded sky map: <a href="https://ldas-jobs.phys.uwm.edu/gracedb/data/%s/private/%s">%s</a>', graceid, permalink_filename, permalink_filename)
         finally:
             shutil.rmtree(fitsdir)
 
