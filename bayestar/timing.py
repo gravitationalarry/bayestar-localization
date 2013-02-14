@@ -35,17 +35,37 @@ def get_f_lso(mass1, mass2):
     return 1 / (6 ** 1.5 * np.pi * (mass1 + mass2) * lal.LAL_MTSUN_SI)
 
 
+_noise_psd_funcs = {}
+
+
+class _vectorize_swig_psd_func(object):
+    """Create a vectorized Numpy function from a SWIG-wrapped PSD function.
+    SWIG does not provide enough information for Numpy to determine the number
+    of input arguments, so we can't just use np.vectorize."""
+
+    def __init__(self, func):
+        self._npyfunc = np.frompyfunc(func, 1, 1)
+
+    def __call__(self, f):
+        ret = self._npyfunc(f)
+        if not np.isscalar(ret):
+            ret = ret.astype(float)
+        return ret
+
+
+for _ifos, _func in (
+    (("H1", "H2", "L1", "I1"), lalsimulation.SimNoisePSDaLIGOZeroDetHighPower),
+    (("V1",), lalsimulation.SimNoisePSDAdvVirgo),
+    (("K1"), lalsimulation.SimNoisePSDKAGRA)
+):
+    _func = _vectorize_swig_psd_func(_func)
+    for _ifo in _ifos:
+        _noise_psd_funcs[_ifo] = _func
+
+
 def get_noise_psd_func(ifo):
     """Find a function that describes the given interferometer's noise PSD."""
-    if ifo in ("H1", "H2", "L1", "I1"):
-        func = lalsimulation.SimNoisePSDaLIGOZeroDetHighPower
-    elif ifo == "V1":
-        func = lalsimulation.SimNoisePSDAdvVirgo
-    elif ifo == "K1":
-        func = lalsimulation.SimNoisePSDKAGRA
-    else:
-        raise ValueError("Unknown interferometer: %s", ifo)
-    return func
+    return _noise_psd_funcs[ifo]
 
 
 def interpolate_psd(f, S):
@@ -130,10 +150,7 @@ class SignalModel(object):
         # Throw away leading and trailing zeros.
         h = h.data.data[first_nonzero:last_nonzero + 1]
 
-        # Noise PSD function.
-        S = [S(ff) for ff in f]
-
-        self.denom_integrand = 4 / (2 * np.pi) * (np.square(h.real) + np.square(h.imag)) / S
+        self.denom_integrand = 4 / (2 * np.pi) * (np.square(h.real) + np.square(h.imag)) / S(f)
         self.den = np.trapz(self.denom_integrand, dx=self.dw)
 
     def get_horizon_distance(self, snr_thresh=1):
