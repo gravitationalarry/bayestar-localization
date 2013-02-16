@@ -64,10 +64,15 @@ log = logging.getLogger('BAYESTAR')
 # Functions
 #
 
-def wait_for_download(gracedb, graceid, filename):
+
+class DownloadNotFoundError(Exception):
+    pass
+
+
+def wait_for_download(gracedb, graceid, filename, max_timeout=16):
     timeout = 1
     log.debug("%s:waiting for file to arrive", filename)
-    while True:
+    while timeout < max_timeout:
         try:
             fileobj = gracedb.files(graceid, filename)
         except ligo.gracedb.rest.HTTPError:
@@ -77,6 +82,7 @@ def wait_for_download(gracedb, graceid, filename):
         else:
             log.info('%s:downloaded', filename)
             return fileobj
+    raise DownloadNotFoundError(filename)
 
 
 #
@@ -108,10 +114,18 @@ if alert_type == 'new':
 
     # Produce log message for any otherwise uncaught exception
     try:
-        # download coinc.xml
-        coinc_file = wait_for_download(gracedb, graceid, "coinc.xml")
-        # download psd.xml.gz
-        psd_file = wait_for_download(gracedb, graceid, "psd.xml.gz")
+        try:
+            # download coinc.xml
+            coinc_file = wait_for_download(gracedb, graceid, "coinc.xml")
+        except DownloadNotFoundError as e:
+            log.error("%s:file not found, giving up on this event", e.args[0])
+
+        try:
+            # download psd.xml.gz
+            psd_file = wait_for_download(gracedb, graceid, "psd.xml.gz")
+        except DownloadNotFoundError as e:
+            psd_file = None
+            log.warn("%s:file not found, assuming aLIGO/AdvVirgo model PSDs", e.args[0])
 
         # perform sky localization
         from bayestar.ligolw_sky_map import gracedb_sky_map

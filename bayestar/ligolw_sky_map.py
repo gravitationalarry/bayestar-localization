@@ -223,14 +223,17 @@ def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance=None, ma
         if sngl_inspiral.event_id == event_id).next() for event_id in event_ids]
 
     # Read PSDs.
-    xmldoc, _ = ligolw_utils.load_fileobj(psd_file)
-    psds = read_psd_xmldoc(xmldoc)
+    if psd_file is None:
+        psds = None
+    else:
+        xmldoc, _ = ligolw_utils.load_fileobj(psd_file)
+        psds = read_psd_xmldoc(xmldoc)
 
-    # Rearrange PSDs into the same order as the sngl_inspirals.
-    psds = [psds[sngl_inspiral.ifo] for sngl_inspiral in sngl_inspirals]
+        # Rearrange PSDs into the same order as the sngl_inspirals.
+        psds = [psds[sngl_inspiral.ifo] for sngl_inspiral in sngl_inspirals]
 
-    # Interpolate PSDs.
-    psds = [timing.InterpolatedPSD(filter.abscissa(psd), psd.data.data) for psd in psds]
+        # Interpolate PSDs.
+        psds = [timing.InterpolatedPSD(filter.abscissa(psd), psd.data.data) for psd in psds]
 
     # TOA+SNR sky localization
     return ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
