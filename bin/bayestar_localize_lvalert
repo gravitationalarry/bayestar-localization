@@ -56,7 +56,7 @@ import ligo.lvalert.utils
 # Logging
 #
 
-logging.basicConfig(level=logging.INFO)
+logging.basicConfig(level=logging.DEBUG)
 log = logging.getLogger('BAYESTAR')
 
 
@@ -80,7 +80,7 @@ def wait_for_download(gracedb, graceid, filename, max_timeout=16):
             time.sleep(timeout)
             timeout *= 2
         else:
-            log.info('%s:downloaded', filename)
+            log.debug('%s:downloaded', filename)
             return fileobj
     raise DownloadNotFoundError(filename)
 
@@ -110,7 +110,9 @@ if alert_type == 'new':
     gracedb = ligo.gracedb.rest.GraceDb()
 
     # Send log messages to GraceDb too
-    logging.root.addHandler(ligo.gracedb.logging.GraceDbLogHandler(gracedb, graceid))
+    handler = ligo.gracedb.logging.GraceDbLogHandler(gracedb, graceid)
+    handler.setLevel(logging.INFO)
+    logging.root.addHandler(handler)
 
     # A little bit of Cylon humor
     log.info('by your command...')
