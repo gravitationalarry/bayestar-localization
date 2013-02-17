@@ -69,20 +69,22 @@ class DownloadNotFoundError(Exception):
     pass
 
 
-def wait_for_download(gracedb, graceid, filename, max_timeout=32):
+def wait_for_download(gracedb, graceid, filename, max_timeout=16):
     timeout = 1
     log.debug("%s:waiting for file to arrive", filename)
-    while timeout < max_timeout:
+    while True:
         try:
             fileobj = gracedb.files(graceid, filename)
         except ligo.gracedb.rest.HTTPError:
-            log.debug('%s:not found, sleeping for %d seconds', filename, timeout)
-            time.sleep(timeout)
-            timeout *= 2
+            if timeout <= max_timeout:
+                log.debug('%s:not found, sleeping for %d seconds', filename, timeout)
+                time.sleep(timeout)
+                timeout *= 2
+            else:
+                raise DownloadNotFoundError(filename)
         else:
             log.debug('%s:downloaded', filename)
             return fileobj
-    raise DownloadNotFoundError(filename)
 
 
 #
