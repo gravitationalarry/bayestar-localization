@@ -69,7 +69,7 @@ class DownloadNotFoundError(Exception):
     pass
 
 
-def wait_for_download(gracedb, graceid, filename, max_timeout=16):
+def wait_for_download(gracedb, graceid, filename, max_timeout=32):
     timeout = 1
     log.debug("%s:waiting for file to arrive", filename)
     while timeout < max_timeout:
