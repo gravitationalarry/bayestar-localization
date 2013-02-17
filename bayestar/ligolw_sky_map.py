@@ -119,8 +119,11 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
     mass2s = np.asarray([sngl_inspiral.mass2 for sngl_inspiral in sngl_inspirals])
 
     # Extract SNRs from table.
-    snrs = np.asarray([complex_from_polar(sngl_inspiral.snr, sngl_inspiral.coa_phase)
-        for sngl_inspiral in sngl_inspirals])
+    # FIXME: should get complex SNR, but MBTAOnline events don't populate the
+    # coa_phase column.
+    snrs = np.asarray([sngl_inspiral.snr for sngl_inspiral in sngl_inspirals])
+    # snrs = np.asarray([complex_from_polar(sngl_inspiral.snr, sngl_inspiral.coa_phase)
+    #     for sngl_inspiral in sngl_inspirals])
 
     # Extract TOAs from table.
     toas_ns = np.asarray([sngl_inspiral.get_end().ns()
