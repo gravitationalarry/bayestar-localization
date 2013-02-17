@@ -112,6 +112,9 @@ if alert_type == 'new':
     # Send log messages to GraceDb too
     logging.root.addHandler(ligo.gracedb.logging.GraceDbLogHandler(gracedb, graceid))
 
+    # A little bit of Cylon humor
+    log.info('by your command...')
+
     # Produce log message for any otherwise uncaught exception
     try:
         try:
