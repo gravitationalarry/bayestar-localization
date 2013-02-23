@@ -244,7 +244,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     char *prior_str = NULL;
 
     double *toas;
-    double complex *snrs;
+    double *snrs;
     double *toa_variances;
     const float **responses = NULL;
     const double **locations = NULL;
@@ -287,7 +287,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     nifos = PyArray_DIM(toas_npy, 0);
     toas = PyArray_DATA(toas_npy);
 
-    snrs_npy = AsArrayObj(snrs_obj, NPY_CDOUBLE, 1);
+    snrs_npy = AsArrayObj(snrs_obj, NPY_DOUBLE, 1);
     if (!snrs_npy) goto fail;
     if (PyArray_DIM(snrs_npy, 0) != nifos)
     {

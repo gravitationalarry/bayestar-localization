@@ -101,10 +101,6 @@ def read_psd_xmldoc(xmldoc):
 # End section copied and adapted from pylal.series.read_psd_xmldoc.
 
 
-def complex_from_polar(r, phi):
-    return r * (np.cos(phi) + np.sin(phi) * 1j)
-
-
 def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_low, min_distance=None, max_distance=None, prior=None, method="toa_snr", reference_frequency=None, psds=None, nside=-1):
     """Convenience function to produce a sky map from LIGO-LW rows. Note that
     min_distance and max_distance should be in Mpc."""
@@ -120,10 +116,8 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
 
     # Extract SNRs from table.
     # FIXME: should get complex SNR, but MBTAOnline events don't populate the
-    # coa_phase column.
+    # coa_phase column, and we are not using coa_phase yet.
     snrs = np.asarray([sngl_inspiral.snr for sngl_inspiral in sngl_inspirals])
-    # snrs = np.asarray([complex_from_polar(sngl_inspiral.snr, sngl_inspiral.coa_phase)
-    #     for sngl_inspiral in sngl_inspirals])
 
     # Extract TOAs from table.
     toas_ns = np.asarray([sngl_inspiral.get_end().ns()
