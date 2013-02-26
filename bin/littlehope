@@ -45,7 +45,7 @@ from bayestar import command
 parser = OptionParser(
     formatter = command.NewlinePreservingHelpFormatter(),
     description = __doc__,
-    usage="%prog [options] [INPUT.xml[.gz]]",
+    usage="%prog [options] --template-bank TMPLTBANK.xml[.gz] [INPUT.xml[.gz]] [-o OUTPUT.xml[.gz]]",
     option_list = [
         Option("-o", "--output", metavar="OUTPUT.xml[.gz]", default="/dev/stdout",
             help="Name of output file (default=stdout)"),
@@ -60,13 +60,15 @@ parser = OptionParser(
         Option("--interp-window", metavar="SAMPLES", type=int, default=2,
             help="Trigger interpolation window (default=2)"),
         Option("--waveform",
-            help="Waveform to use for templates"),
+            help="Waveform to use for injections"),
         Option("--snr-threshold", type=float, default=8.,
             help="Single-detector SNR threshold (default=8)"),
         Option("--min-triggers", type=int, default=3,
             help="Emit coincidences only when at least this many triggers are found (default=3)"),
         Option("-R", "--repeat-first-injection", type=int, default=None,
-            help="Instead of performing each injection once, just perform the first injection this many times.")
+            help="Instead of performing each injection once, just perform the first injection this many times."),
+        Option("--template-bank", metavar="TMPLTBANK.xml[.gz]",
+            help="Name of template bank file (required)")
     ]
 )
 opts, args = parser.parse_args()
@@ -78,8 +80,11 @@ elif len(args) == 1:
     infilename = args[0]
 else:
     parser.error("Too many command line arguments.")
-if opts.waveform is None:
-    parser.error("Missing required argument --waveform.")
+
+# Check that required command line arguments are present.
+for required_arg in ('waveform', 'template_bank'):
+    if getattr(opts, required_arg) is None:
+        parser.error("--{}: missing required argument".format(required_arg.replace('_', '-')))
 
 
 # Python standard library imports.
@@ -135,6 +140,29 @@ out_xmldoc.childNodes[0].appendChild(search_summary_table)
 summary = ligolw_search_summary.append_search_summary(out_xmldoc, process,
     inseg=all_time, outseg=all_time)
 
+# Read template bank file.
+xmldoc = ligolw_utils.load_filename(opts.template_bank)
+
+# Determine the low frequency cutoff from the command line arguments,
+# whether the template bank was produced by lalapps_tmpltbank or
+# lalapps_cbc_sbank. bayestar_sim_to_tmpltbank does not have a command
+# line for the low-frequency cutoff; instead, it is recorded in a row
+# of the search_summvars table.
+try:
+    template_bank_f_low, = ligolw_process.get_process_params(xmldoc, 'tmpltbank', '--low-frequency-cutoff')
+except ValueError:
+    try:
+        template_bank_f_low, = ligolw_process.get_process_params(xmldoc, 'lalapps_cbc_sbank', '--flow')
+    except ValueError:
+        try:
+            search_summvars_table = ligolw_table.get_table(xmldoc, lsctables.SearchSummVarsTable.tableName)
+            template_bank_f_low, = (search_summvars.value for search_summvars in search_summvars_table if search_summvars.name == 'low-frequency cutoff')
+        except ValueError:
+            raise ValueError("Could not determine low-frequency cutoff from process or search summary variable tables")
+
+template_bank = ligolw_table.get_table(xmldoc,
+    lsctables.SnglInspiralTable.tableName)
+
 # Read injection file.
 xmldoc = ligolw_utils.load_filename(infilename)
 
@@ -187,27 +215,29 @@ class psdfunc(object):
         else:
             return 0.
 
-psdfuncs = dict((ifo, np.vectorize(psdfunc(timing.get_noise_psd_func(ifo)))) for ifo in opts.detector)
+psdfuncs = [np.vectorize(psdfunc(timing.get_noise_psd_func(ifo))) for ifo in opts.detector]
+
+# Compute horizon distances for each template, for each detector
+horizons_bank = [
+    [
+        timing.SignalModel(sngl.mass1, sngl.mass2, S, template_bank_f_low, template_approximant, template_amplitude_order, template_phase_order).get_horizon_distance()
+        for S in psdfuncs
+    ] for sngl in template_bank]
 
 # Generate templates for each unique set of intrinsic parameters
-inj_params = set((sim.mass1, sim.mass2, sim.f_lower) for sim in sim_inspiral_table)
-templates = dict(
-    (
-        (mass1, mass2, f_low),
-        dict(
-            (
-                ifo,
-                filter.generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, template_approximant, template_amplitude_order, template_phase_order)
-            ) for ifo, S in psdfuncs.iteritems()
-        )
-    ) for mass1, mass2, f_low in inj_params)
+# FIXME: Get template_duration, template_approximant, template_amplitude_order, and template_phase_order from sngl_inspiral table.
+template_bank = [
+    [
+        filter.generate_template(sngl.mass1, sngl.mass2, S, template_bank_f_low, sample_rate, template_duration, template_approximant, template_amplitude_order, template_phase_order)
+        for S in psdfuncs
+    ] for sngl in template_bank]
 
 # Generate PSDs for data coloring
 def generate_psd(S):
     psd = lal.CreateREAL8FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 1 / data_duration, filter.unitInverseHertz, data_length // 2 + 1)
     psd.data.data = S(filter.abscissa(psd))
     return psd
-psds = dict((ifo, generate_psd(S)) for ifo, S in psdfuncs.iteritems())
+psds = [generate_psd(S) for ifo, S in zip(opts.detector, psdfuncs)]
 
 
 if opts.repeat_first_injection:
@@ -215,9 +245,63 @@ if opts.repeat_first_injection:
 else:
     n_injections = len(sim_inspiral_table)
 
-for i_sim_inspiral in range(n_injections):
 
-    sngl_inspirals = []
+def detect_sngls(ifos, data, horizons, templates):
+    for ifo, x, horizon, zW in zip(ifos, data, horizons, templates):
+        # Apply matched filter
+        rho = filter.fftfilt(zW, x.data.data)[len(zW)-1:]
+
+        # Find maximum index
+        i0 = long(round(-(template_duration + float(x.epoch - end_time)) * sample_rate))
+        di = long(round(sample_rate * opts.trigger_window))
+        imax = np.argmax(filter.abs2(rho[i0 - di:i0 + di])) + i0 - di
+
+        # If SNR < threshold, then the injection is not found. Skip it.
+        if abs(rho[imax]) < opts.snr_threshold:
+            continue
+
+        # Interpolate time series
+        imax, rhomax = filter.interpolate_max(imax, rho, opts.interp_window, method=opts.interp_method)
+        tmax = x.epoch + (imax / sample_rate + template_duration)
+
+        # Add SnglInspiral entry.
+        sngl_inspiral = lsctables.SnglInspiral()
+        for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
+            setattr(sngl_inspiral, validcolumn, None)
+        sngl_inspiral.process_id = process.process_id
+        sngl_inspiral.ifo = ifo
+        sngl_inspiral.mass1 = mass1
+        sngl_inspiral.mass2 = mass2
+        sngl_inspiral.end_time = tmax.gpsSeconds
+        sngl_inspiral.end_time_ns = tmax.gpsNanoSeconds
+        sngl_inspiral.snr = abs(rhomax)
+        sngl_inspiral.coa_phase = np.angle(rhomax)
+        sngl_inspiral.eff_distance = horizon / sngl_inspiral.snr
+        yield sngl_inspiral
+
+
+def detect_net_snr_and_sngls(ifos, data, horizons, templates):
+    sngls = list(detect_sngls(ifos, data, horizons, templates))
+    return sum(sngl.snr for sngl in sngls), sngls
+
+
+def inject(hplus, hcross, ifo, psd):
+    # Generate colored noise
+    x = filter.colored_noise(epoch, data_duration, sample_rate, psd)
+
+    # Project injection for this detector.
+    detector = lalsimulation.InstrumentNameToLALDetector(ifo)
+    h = lalsimulation.SimDetectorStrainREAL8TimeSeries(hplus, hcross,
+        ra, dec, psi, detector)
+
+    # Add injection to data
+    lal.AddREAL8TimeSeries(x, h)
+
+    # Done!
+    return x
+
+
+for i_sim_inspiral in range(n_injections):
 
     if opts.repeat_first_injection:
         sim_inspiral = sim_inspiral_table[0]
@@ -257,51 +341,10 @@ for i_sim_inspiral in range(n_injections):
         hplus.epoch += end_time
         hcross.epoch += end_time
 
-    for ifo in opts.detector:
-        # Generate colored noise
-        x = filter.colored_noise(epoch, data_duration, sample_rate, psds[ifo])
+    # Realize detector noise and add injection
+    data = [inject(hplus, hcross, ifo, psd) for ifo, psd in zip(opts.detector, psds)]
 
-        # Project injection for this detector.
-        detector = lalsimulation.InstrumentNameToLALDetector(ifo)
-        h = lalsimulation.SimDetectorStrainREAL8TimeSeries(hplus, hcross,
-            ra, dec, psi, detector)
-
-        horizon = timing.SignalModel(mass1, mass2, timing.get_noise_psd_func(ifo), f_low, approximant, amplitude_order, phase_order).get_horizon_distance()
-
-        # Add injection to data
-        lal.AddREAL8TimeSeries(x, h)
-
-        # Apply matched filter
-        zW = templates[(mass1, mass2, f_low)][ifo]
-        rho = filter.fftfilt(zW, x.data.data)[len(zW)-1:]
-
-        # Find maximum index
-        i0 = long(round(-(template_duration + float(x.epoch - end_time)) * sample_rate))
-        di = long(round(sample_rate * opts.trigger_window))
-        imax = np.argmax(filter.abs2(rho[i0 - di:i0 + di])) + i0 - di
-
-        # If SNR < threshold, then the injection is not found. Skip it.
-        if abs(rho[imax]) < opts.snr_threshold:
-            continue
-
-        # Interpolate time series
-        imax, rhomax = filter.interpolate_max(imax, rho, opts.interp_window, method=opts.interp_method)
-        tmax = x.epoch + (imax / sample_rate + template_duration)
-
-        # Add SnglInspiral entry.
-        sngl_inspiral = lsctables.SnglInspiral()
-        for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
-            setattr(sngl_inspiral, validcolumn, None)
-        sngl_inspiral.process_id = process.process_id
-        sngl_inspiral.ifo = ifo
-        sngl_inspiral.mass1 = mass1
-        sngl_inspiral.mass2 = mass2
-        sngl_inspiral.end_time = tmax.gpsSeconds
-        sngl_inspiral.end_time_ns = tmax.gpsNanoSeconds
-        sngl_inspiral.snr = abs(rhomax)
-        sngl_inspiral.coa_phase = np.angle(rhomax)
-        sngl_inspiral.eff_distance = horizon / sngl_inspiral.snr
-        sngl_inspirals.append(sngl_inspiral)
+    net_snr, sngl_inspirals = max(detect_net_snr_and_sngls(opts.detector, data, horizons, templates) for templates, horizons in zip(template_bank, horizons_bank))
 
     # If too few triggers were found, then skip this event.
     if len(sngl_inspirals) < opts.min_triggers:
