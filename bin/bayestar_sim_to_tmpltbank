@@ -102,7 +102,6 @@ sngl_inspiral.mass2 = sim_inspiral.mass2
 sngl_inspiral.mtotal = sngl_inspiral.mass1 + sngl_inspiral.mass2
 sngl_inspiral.mchirp = sim_inspiral.mchirp
 sngl_inspiral.eta = sim_inspiral.eta
-sngl_inspiral.ifo = "H1"
 sngl_inspiral.f_final = timing.get_f_lso(sngl_inspiral.mass1, sngl_inspiral.mass2)
 # FIXME: popoulate sngl_inspiral.chi
 
