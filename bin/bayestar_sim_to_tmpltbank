@@ -67,9 +67,6 @@ from glue import lal
 # BAYESTAR imports.
 from bayestar import timing
 
-# Other imports.
-import numpy as np
-
 
 _fields = 'mass1 mass2 mchirp eta spin1x spin1y spin1z spin2x spin2y spin2z'
 
