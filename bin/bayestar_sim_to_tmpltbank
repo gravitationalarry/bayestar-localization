@@ -109,6 +109,27 @@ sim_inspiral_table = ligolw_table.get_table(xmldoc,
 sim_inspiral_intrinsic_params = set(TaylorF2RedSpinIntrinsicParams(sim_inspiral)
     for sim_inspiral in sim_inspiral_table)
 
+# Get the low-frequency cutoffs from the sim_inspiral table.
+f_lows = set(sim_inspiral.f_lower for sim_inspiral in sim_inspiral_table)
+
+# There can be only one!
+try:
+    f_low, = f_lows
+except ValueError:
+    raise ValueError("sim_inspiral:f_lower columns are not unique, got values: "
+        + ' '.join(f_lows))
+
+# Record low-frequency cutoff in the SearchSummVars table.
+search_summvars_table = lsctables.New(lsctables.SearchSummVarsTable)
+out_xmldoc.childNodes[0].appendChild(search_summvars_table)
+search_summvars = lsctables.SearchSummVars()
+search_summvars.search_summvar_id = search_summvars_table.get_next_id()
+search_summvars.process_id = process.process_id
+search_summvars.name = "low-frequency cutoff"
+search_summvars.string = None
+search_summvars.value = f_low
+search_summvars_table.append(search_summvars)
+
 # Create a SnglInspiral table and initialize its row ID counter.
 sngl_inspiral_table = lsctables.New(lsctables.SnglInspiralTable)
 out_xmldoc.childNodes[0].appendChild(sngl_inspiral_table)
