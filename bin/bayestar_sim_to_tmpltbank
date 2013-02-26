@@ -63,7 +63,6 @@ from glue.ligolw import utils as ligolw_utils
 from glue.ligolw import lsctables
 
 # glue and LAL imports.
-from glue import lal
 import lalsimulation
 
 # BAYESTAR imports.
