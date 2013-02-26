@@ -50,6 +50,7 @@ else:
 
 # Python standard library imports.
 import os
+from collections import namedtuple
 
 # LIGO-LW XML imports.
 from glue.ligolw import ligolw
@@ -70,6 +71,18 @@ from bayestar import timing
 import numpy as np
 
 
+_fields = 'mass1 mass2 mchirp eta spin1x spin1y spin1z spin2x spin2y spin2z'
+
+class SimInspiralIntrinsicParams(namedtuple('intrinsic_params', _fields)):
+    """Immutable container for just the intrinsic parameters belonging to a
+    sim_inspiral record."""
+
+    def __init__(self, sim_inspiral):
+        super(SimInspiralIntrinsicParams, self)(
+            *(getattr(sim_inspiral, field) for field in self._fields)
+        )
+
+
 # Open output file.
 out_xmldoc = ligolw.Document()
 out_xmldoc.appendChild(ligolw.LIGO_LW())
@@ -85,27 +98,35 @@ xmldoc = ligolw_utils.load_filename(infilename)
 sim_inspiral_table = ligolw_table.get_table(xmldoc,
     lsctables.SimInspiralTable.tableName)
 
-# Extract first entry from simulation table.
-sim_inspiral = sim_inspiral_table[0]
+# Get just the intrinsic parameters from the sim_inspiral table.
+sim_inspiral_intrinsic_params = set(SimInspiralIntrinsicParams(sim_inspiral)
+    for sim_inspiral in sim_inspiral_table)
 
 # Create a SnglInspiral table and initialize its row ID counter.
 sngl_inspiral_table = lsctables.New(lsctables.SnglInspiralTable)
 out_xmldoc.childNodes[0].appendChild(sngl_inspiral_table)
 sngl_inspiral_table.set_next_id(lsctables.SnglInspiralID(0))
 
-sngl_inspiral = lsctables.SnglInspiral()
-for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
-    setattr(sngl_inspiral, validcolumn, None)
-sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
-sngl_inspiral.mass1 = sim_inspiral.mass1
-sngl_inspiral.mass2 = sim_inspiral.mass2
-sngl_inspiral.mtotal = sngl_inspiral.mass1 + sngl_inspiral.mass2
-sngl_inspiral.mchirp = sim_inspiral.mchirp
-sngl_inspiral.eta = sim_inspiral.eta
-sngl_inspiral.f_final = timing.get_f_lso(sngl_inspiral.mass1, sngl_inspiral.mass2)
-# FIXME: popoulate sngl_inspiral.chi
+for sim_inspiral_intrinsic_param in sim_inspiral_intrinsic_params:
 
-sngl_inspiral_table.append(sngl_inspiral)
+    # Create new sngl_inspiral row and initialize its columns to None,
+    # which produces an empty field in the XML output.
+    sngl_inspiral = lsctables.SnglInspiral()
+    for validcolumn in sngl_inspiral_table.validcolumns.iterkeys():
+        setattr(sngl_inspiral, validcolumn, None)
+
+    # Populate the row's fields.
+    sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
+    sngl_inspiral.mass1 = sim_inspiral_intrinsic_param.mass1
+    sngl_inspiral.mass2 = sim_inspiral_intrinsic_param.mass2
+    sngl_inspiral.mtotal = sngl_inspiral.mass1 + sngl_inspiral.mass2
+    sngl_inspiral.mchirp = sim_inspiral_intrinsic_param.mchirp
+    sngl_inspiral.eta = sim_inspiral_intrinsic_param.eta
+    sngl_inspiral.f_final = timing.get_f_lso(sngl_inspiral.mass1, sngl_inspiral.mass2)
+    # FIXME: popoulate sngl_inspiral.chi
+
+    # Add the row to the table in the document.
+    sngl_inspiral_table.append(sngl_inspiral)
 
 # Record process end time.
 ligolw_process.set_process_end_time(process)
