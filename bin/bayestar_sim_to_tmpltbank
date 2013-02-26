@@ -16,7 +16,7 @@
 # along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #
 from __future__ import division
-"""
+__doc__ = """
 Create a template bank that has a single template that exactly matches
 the first sim_inspiral record in an injection file.
 """
