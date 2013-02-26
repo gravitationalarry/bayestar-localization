@@ -61,23 +61,33 @@ from pylal import ligolw_thinca
 from glue.ligolw import utils as ligolw_utils
 from glue.ligolw import lsctables
 
-# glue, LAL and pylal imports.
+# glue and LAL imports.
 from glue import lal
+import lalsimulation
 
 # BAYESTAR imports.
 from bayestar import timing
 
 
-_fields = 'mass1 mass2 mchirp eta spin1x spin1y spin1z spin2x spin2y spin2z'
+_fields = 'mass1 mass2 mchirp eta spin1z spin2z'
 
-class SimInspiralIntrinsicParams(namedtuple('intrinsic_params', _fields)):
+class TaylorF2RedSpinIntrinsicParams(namedtuple('intrinsic_params', _fields)):
     """Immutable container for just the intrinsic parameters belonging to a
     sim_inspiral record."""
 
-    def __init__(self, sim_inspiral):
-        super(SimInspiralIntrinsicParams, self)(
-            *(getattr(sim_inspiral, field) for field in self._fields)
+    def __new__(cls, sim_inspiral):
+        for attr in 'spin1x spin1y spin2x spin2y'.split():
+            if getattr(sim_inspiral, attr):
+                raise NotImplementedError('sim_inspiral:{} column is nonzero,'
+                'but only aligned-spin templates are supported'.format(attr))
+        return super(TaylorF2RedSpinIntrinsicParams, cls).__new__(cls,
+            *(getattr(sim_inspiral, field) for field in cls._fields)
         )
+
+    @property
+    def chi(self):
+        return lalsimulation.SimInspiralTaylorF2ReducedSpinComputeChi(
+            self.mass1, self.mass2, self.spin1z, self.spin2z)
 
 
 # Open output file.
@@ -96,7 +106,7 @@ sim_inspiral_table = ligolw_table.get_table(xmldoc,
     lsctables.SimInspiralTable.tableName)
 
 # Get just the intrinsic parameters from the sim_inspiral table.
-sim_inspiral_intrinsic_params = set(SimInspiralIntrinsicParams(sim_inspiral)
+sim_inspiral_intrinsic_params = set(TaylorF2RedSpinIntrinsicParams(sim_inspiral)
     for sim_inspiral in sim_inspiral_table)
 
 # Create a SnglInspiral table and initialize its row ID counter.
@@ -120,7 +130,7 @@ for sim_inspiral_intrinsic_param in sim_inspiral_intrinsic_params:
     sngl_inspiral.mchirp = sim_inspiral_intrinsic_param.mchirp
     sngl_inspiral.eta = sim_inspiral_intrinsic_param.eta
     sngl_inspiral.f_final = timing.get_f_lso(sngl_inspiral.mass1, sngl_inspiral.mass2)
-    # FIXME: popoulate sngl_inspiral.chi
+    sngl_inspiral.chi = sim_inspiral_intrinsic_param.chi
 
     # Add the row to the table in the document.
     sngl_inspiral_table.append(sngl_inspiral)
