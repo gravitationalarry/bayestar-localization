@@ -400,4 +400,3 @@ def interpolate_max(imax, y, window_length, method='catmull-rom'):
     else:
         raise ValueError('unrecognized method: %s' % method)
     return func(imax, y, window_length)
-
