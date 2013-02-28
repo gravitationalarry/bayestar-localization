@@ -32,7 +32,8 @@ def pkgconfig(*packages, **kw):
     if status != 0:
         raise _DistutilsExecError("pkg-config: error %d\n%s" % (status, output))
     for token in output.split():
-        kw.setdefault(flag_map.get(token[:2]), []).append(token[2:])
+        if token[:2] in flag_map:
+            kw.setdefault(flag_map[token[:2]], []).append(token[2:])
     return kw
 ## end of http://code.activestate.com/recipes/502261/ }}}
 
