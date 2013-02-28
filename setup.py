@@ -20,16 +20,6 @@ from setuptools import setup
 from misc import *
 from misc.setuptools_openmp import *
 import numpy as np
-import os
-
-
-healpixdir = os.getenv('HEALPIXDIR')
-if healpixdir is None:
-    healpix_include_dirs = []
-    healpix_library_dirs = []
-else:
-    healpix_include_dirs = [os.path.join(healpixdir, 'include')]
-    healpix_library_dirs = [os.path.join(healpixdir, 'lib')]
 
 
 setup(
@@ -45,10 +35,8 @@ setup(
     ext_modules=[
         Extension('bayestar.sky_map', ['bayestar/sky_map.c', 'bayestar/bayestar_sky_map.c'],
             **copy_library_dirs_to_runtime_library_dirs(
-            **pkgconfig('lal', 'lalsimulation', 'gsl',
-                include_dirs=[np.get_include()] + healpix_include_dirs,
-                library_dirs=healpix_library_dirs,
-                libraries=['cfitsio', 'chealpix'],
+            **pkgconfig('lal', 'lalsimulation', 'gsl', 'chealpix',
+                include_dirs=[np.get_include()],
                 extra_compile_args=['-std=c99'],
                 define_macros=[('HAVE_INLINE', None)],
                 openmp=True
