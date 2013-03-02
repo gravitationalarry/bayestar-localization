@@ -52,3 +52,4 @@ def get_input_filename(parser, args):
         infilename = args[0]
     else:
         parser.error("Too many command line arguments.")
+    return infilename
