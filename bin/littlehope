@@ -97,6 +97,7 @@ import lal, lalsimulation
 # BAYESTAR imports.
 from bayestar import timing
 from bayestar import filter
+import bayestar.ligolw
 
 # Other imports.
 import numpy as np
@@ -132,22 +133,8 @@ summary = ligolw_search_summary.append_search_summary(out_xmldoc, process,
 # Read template bank file.
 xmldoc = ligolw_utils.load_filename(opts.template_bank)
 
-# Determine the low frequency cutoff from the command line arguments,
-# whether the template bank was produced by lalapps_tmpltbank or
-# lalapps_cbc_sbank. bayestar_sim_to_tmpltbank does not have a command
-# line for the low-frequency cutoff; instead, it is recorded in a row
-# of the search_summvars table.
-try:
-    template_bank_f_low, = ligolw_process.get_process_params(xmldoc, 'tmpltbank', '--low-frequency-cutoff')
-except ValueError:
-    try:
-        template_bank_f_low, = ligolw_process.get_process_params(xmldoc, 'lalapps_cbc_sbank', '--flow')
-    except ValueError:
-        try:
-            search_summvars_table = ligolw_table.get_table(xmldoc, lsctables.SearchSummVarsTable.tableName)
-            template_bank_f_low, = (search_summvars.value for search_summvars in search_summvars_table if search_summvars.name == 'low-frequency cutoff')
-        except ValueError:
-            raise ValueError("Could not determine low-frequency cutoff from process or search summary variable tables")
+# Determine the low frequency cutoff from the template bank file.
+template_bank_f_low = bayestar.ligolw.get_temlate_bank_f_low(xmldoc)
 
 template_bank = ligolw_table.get_table(xmldoc,
     lsctables.SnglInspiralTable.tableName)

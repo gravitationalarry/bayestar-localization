@@ -23,8 +23,34 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 # LIGO-LW XML imports.
 from pylal import ligolw_inspinjfind
+from glue.ligolw.utils import process as ligolw_process
 from glue.ligolw import table as ligolw_table
 from glue.ligolw import lsctables
+
+
+def get_temlate_bank_f_low(xmldoc):
+    """Determine the low frequency cutoff from a template bank file,
+    whether the template bank was produced by lalapps_tmpltbank or
+    lalapps_cbc_sbank. bayestar_sim_to_tmpltbank does not have a command
+    line for the low-frequency cutoff; instead, it is recorded in a row
+    of the search_summvars table."""
+    try:
+        template_bank_f_low, = ligolw_process.get_process_params(xmldoc,
+            'tmpltbank', '--low-frequency-cutoff')
+    except ValueError:
+        try:
+            template_bank_f_low, = ligolw_process.get_process_params(xmldoc,
+                'lalapps_cbc_sbank', '--flow')
+        except ValueError:
+            try:
+                search_summvars_table = ligolw_table.get_table(xmldoc,
+                    lsctables.SearchSummVarsTable.tableName)
+                template_bank_f_low, = (search_summvars.value
+                    for search_summvars in search_summvars_table
+                    if search_summvars.name == 'low-frequency cutoff')
+            except ValueError:
+                raise ValueError("Could not determine low-frequency cutoff")
+    return template_bank_f_low
 
 
 def sim_and_sngl_inspirals_for_xmldoc(xmldoc):
