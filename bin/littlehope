@@ -73,7 +73,7 @@ parser = OptionParser(
 )
 opts, args = parser.parse_args()
 infilename = command.get_input_filename(parser, args)
-command.require_arguments(parser, 'waveform', 'template_bank')
+command.require_arguments(parser, opts, 'waveform', 'template_bank')
 
 
 # Python standard library imports.

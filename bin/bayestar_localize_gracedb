@@ -66,7 +66,7 @@ parser = OptionParser(
 )
 opts, args = parser.parse_args()
 infilename = command.get_input_filename(parser, args)
-command.check_required_arguments(parser, "prior", "psd", "output")
+command.check_required_arguments(parser, opts, "prior", "psd", "output")
 
 
 # BAYESTAR imports.

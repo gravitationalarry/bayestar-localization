@@ -36,7 +36,7 @@ class NewlinePreservingHelpFormatter(IndentedHelpFormatter):
         )
 
 
-def check_required_arguments(parser, *keys):
+def check_required_arguments(parser, opts, *keys):
     """Raise an error if any of the specified command-line arguments are missing."""
     for key in keys:
         if getattr(opts, key) is None:
