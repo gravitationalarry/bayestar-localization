@@ -56,14 +56,7 @@ parser = OptionParser(
     ]
 )
 opts, args = parser.parse_args()
-
-# Determine if input will come from a named file or from stdin.
-if len(args) == 0:
-    infilename = '/dev/stdin'
-elif len(args) == 1:
-    infilename = args[0]
-else:
-    parser.error("Too many command line arguments.")
+infilename = command.get_input_filename(parser, args)
 
 
 # Python standard library imports.

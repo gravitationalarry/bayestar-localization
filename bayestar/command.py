@@ -34,3 +34,21 @@ class NewlinePreservingHelpFormatter(IndentedHelpFormatter):
             else IndentedHelpFormatter._format_text(self, t)
             for t in text.split("\n\n")
         )
+
+
+def check_required_arguments(parser, *keys):
+    """Raise an error if any of the specified command-line arguments are missing."""
+    for key in keys:
+        if getattr(opts, key) is None:
+            parser.error("Missing required argument: --" + key.replace("_", "-"))
+
+
+def get_input_filename(parser, args):
+    """Determine name of input: either the sole positional command line argument,
+    or /dev/stdin."""
+    if len(args) == 0:
+        infilename = '/dev/stdin'
+    elif len(args) == 1:
+        infilename = args[0]
+    else:
+        parser.error("Too many command line arguments.")

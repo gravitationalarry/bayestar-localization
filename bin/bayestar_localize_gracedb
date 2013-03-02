@@ -31,7 +31,6 @@ is omitted, it defaults to twice the maximum effective distance among detectors.
 Output is an optionally gzip-compressed HEALPix FITS file, whose filename is
 provided by the required "-o" or "--output" argument.
 """
-from __future__ import division
 __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 
@@ -66,16 +65,8 @@ parser = OptionParser(
     ]
 )
 opts, args = parser.parse_args()
-
-if len(args) == 0:
-    infilename = "/dev/stdin"
-elif len(args) == 1:
-    infilename = args[0]
-else:
-    parser.error("Too many command line arguments")
-for key in ("prior", "psd", "output"):
-    if getattr(opts, key) is None:
-        parser.error("Missing required argument: --" + key.replace("_", "-"))
+infilename = command.get_input_filename(parser, args)
+command.check_required_arguments(parser, "prior", "psd", "output")
 
 
 # BAYESTAR imports.
