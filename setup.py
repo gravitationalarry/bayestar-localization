@@ -47,6 +47,7 @@ setup(
         'bin/bayestar_localize_gracedb',
         'bin/bayestar_localize_lvalert',
         'bin/bayestar_cluster_coincs',
+        'bin/bayestar_prune_neighborhood_tmpltbank',
         'bin/bayestar_realize_coincs',
         'bin/bayestar_localize_coincs',
         'bin/bayestar_sim_to_tmpltbank',
