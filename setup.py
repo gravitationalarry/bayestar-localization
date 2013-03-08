@@ -44,6 +44,7 @@ setup(
         )
     ],
     scripts=[
+        'bin/bayestar_lattice_tmpltbank',
         'bin/bayestar_localize_gracedb',
         'bin/bayestar_localize_lvalert',
         'bin/bayestar_cluster_coincs',
