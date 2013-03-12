@@ -131,7 +131,7 @@ class SignalModel(object):
             # Frequency-domain post-Newtonian inspiral waveform.
             h = lalsimulation.SimInspiralChooseFDWaveform(0, 1,
                 mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
-                0, 0, 0, 0, 0, 0, f_low, -1, 1e6 * lal.LAL_PC_SI,
+                0, 0, 0, 0, 0, 0, f_low, 0, 1e6 * lal.LAL_PC_SI,
                 0, 0, 0, None, None, amplitude_order, 0, approximant)
 
             # The XLALSimInspiralChooseFDWaveform API recently changed, getting
