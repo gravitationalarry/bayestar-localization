@@ -101,7 +101,7 @@ def read_psd_xmldoc(xmldoc):
 # End section copied and adapted from pylal.series.read_psd_xmldoc.
 
 
-def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_low, min_distance=None, max_distance=None, prior=None, method="toa_snr", reference_frequency=None, psds=None, nside=-1):
+def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_low, min_distance=None, max_distance=None, prior=None, max_inclination=90, method="toa_snr", reference_frequency=None, psds=None, nside=-1):
     """Convenience function to produce a sky map from LIGO-LW rows. Note that
     min_distance and max_distance should be in Mpc."""
 
@@ -179,7 +179,7 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
     if method == "toa":
         prob = sky_map.tdoa(gmst, toas, s2_toas, locations, nside=nside)
     elif method == "toa_snr":
-        prob = sky_map.tdoa_snr(gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance, prior, nside=nside)
+        prob = sky_map.tdoa_snr(gmst, toas, snrs, s2_toas, responses, locations, horizons, min_distance, max_distance, prior, max_inclination=max_inclination, nside=nside)
     else:
         raise ValueError("Unrecognized method: %s" % method)
     end_time = time.time()
@@ -191,7 +191,7 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
     return prob, epoch, elapsed_time
 
 
-def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance=None, max_distance=None, prior=None, reference_frequency=None, nside=-1):
+def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance=None, max_distance=None, prior=None, max_inclination=90, reference_frequency=None, nside=-1):
     # LIGO-LW XML imports.
     from glue.ligolw import table as ligolw_table
     from glue.ligolw import utils as ligolw_utils
@@ -235,4 +235,4 @@ def gracedb_sky_map(coinc_file, psd_file, waveform, f_low, min_distance=None, ma
     # TOA+SNR sky localization
     return ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
         min_distance, max_distance, prior,
-        reference_frequency=reference_frequency, nside=nside, psds=psds)
+        reference_frequency=reference_frequency, max_inclination=max_inclination, nside=nside, psds=psds)

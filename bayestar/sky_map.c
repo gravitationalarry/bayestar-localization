@@ -253,6 +253,8 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     double min_distance, max_distance;
     bayestar_prior_t prior = -1;
 
+    double max_inclination = 90;
+
     npy_intp dims[1];
     PyObject *out = NULL, *ret = NULL;
     premalloced_object *premalloced = NULL;
@@ -262,13 +264,13 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     /* Names of arguments */
     static char *keywords[] = {"gmst", "toas", "snrs",
         "toa_variances", "responses", "locations", "horizons",
-        "min_distance", "max_distance", "prior", "nside", NULL};
+        "min_distance", "max_distance", "prior", "max_inclination", "nside", NULL};
 
     /* Parse arguments */
-    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "dOOOOOOdds|l", keywords,
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "dOOOOOOdds|dl", keywords,
         &gmst, &toas_obj, &snrs_obj, &toa_variances_obj,
         &responses_obj, &locations_obj, &horizons_obj,
-        &min_distance, &max_distance, &prior_str, &nside)) goto fail;
+        &min_distance, &max_distance, &prior_str, &max_inclination, &nside)) goto fail;
 
     if (nside == -1)
     {
@@ -397,7 +399,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     }
 
     old_handler = gsl_set_error_handler(my_gsl_error);
-    P = bayestar_sky_map_tdoa_snr(&npix, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons, min_distance, max_distance, prior);
+    P = bayestar_sky_map_tdoa_snr(&npix, gmst, nifos, responses, locations, toas, snrs, toa_variances, horizons, min_distance, max_distance, prior, max_inclination);
     gsl_set_error_handler(old_handler);
 
     if (!P)

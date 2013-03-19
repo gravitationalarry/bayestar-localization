@@ -70,6 +70,8 @@ parser = OptionParser(
             help="Maximum distance prior in megaparsecs"),
         Option("--prior", choices=prior_choices, metavar="|".join(prior_choices),
             help="Distance prior (required)"),
+        Option("--max-inclination", type=float, metavar='DEGREES', default=90,
+            help="Maximum inclination angle (default=90 degrees)"),
         Option("--reference-frequency", type=float, metavar="Hz",
             help="Shift trigger times from coalescence time to time when GW inspiral has this frequency"),
         Option("--reference-psd-cache", metavar="FILE.cache",
@@ -252,7 +254,7 @@ for sim_inspiral, sngl_inspirals in ligolw_bayestar.sim_and_sngl_inspirals_for_x
         sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
         opts.min_distance, opts.max_distance, opts.prior, psds=psds,
         reference_frequency=opts.reference_frequency, method="toa_snr",
-        nside=opts.nside)
+        max_inclination=opts.max_inclination, nside=opts.nside)
 
     # Calculate how well the injection is recovered.
     searched_area, searched_prob, offset = find_injection(sky_map, ra, dec)

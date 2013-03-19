@@ -49,7 +49,8 @@ double *bayestar_sky_map_tdoa_snr(
     const double *horizons, /* Distances at which a source would produce an SNR of 1 in each detector. */
     double min_distance,
     double max_distance,
-    bayestar_prior_t prior
+    bayestar_prior_t prior,
+    double max_inclination  /* Maximum inclination angle in degrees. */
 );
 
 #endif /* BAYESTAR_SKY_MAP_H */

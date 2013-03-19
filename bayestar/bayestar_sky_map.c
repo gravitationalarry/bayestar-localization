@@ -288,7 +288,9 @@ double *bayestar_sky_map_tdoa_snr(
     const double *horizons, /* Distances at which a source would produce an SNR of 1 in each detector. */
     double min_distance,
     double max_distance,
-    bayestar_prior_t prior)
+    bayestar_prior_t prior,
+    double max_inclination /* Maximum inclination angle in degrees. */
+)
 {
     long nside;
     long maxpix;
@@ -318,6 +320,9 @@ double *bayestar_sky_map_tdoa_snr(
 
     /* Number of integration steps in cos(inclination) */
     static const int nu = 16;
+
+    /* Upper integration limit in cos(inclination) */
+    const double minu = (max_inclination == 90 ? 0 : cos(M_PI / 180 * max_inclination));
 
     /* Choose radial integrand function based on selected prior. */
     switch (prior)
@@ -425,7 +430,7 @@ double *bayestar_sky_map_tdoa_snr(
              * limit has to be <= */
             for (iu = 0; iu <= nu; iu++)
             {
-                const double u = (double)iu / nu;
+                const double u = (double)iu / nu * (1 - minu) + minu;
                 const double u2 = gsl_pow_2(u);
                 const double u4 = gsl_pow_2(u2);
 

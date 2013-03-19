@@ -56,6 +56,8 @@ parser = OptionParser(
             help="Maximum distance prior in megaparsecs"),
         Option("--prior", choices=prior_choices, metavar="|".join(prior_choices),
             help="Distance prior (required)"),
+        Option("--max-inclination", type=float, metavar='DEGREES', default=90,
+            help="Maximum inclination angle (default=90 degrees)"),
         Option("--reference-frequency", type=float, metavar="Hz",
             help="Shift trigger times from coalescence time to time when GW inspiral has this frequency"),
         Option("--psd", metavar="PSD.xml[.gz]",
@@ -73,7 +75,7 @@ command.check_required_arguments(parser, opts, "prior", "psd", "output")
 from bayestar import io
 from bayestar.ligolw_sky_map import gracedb_sky_map
 
-sky_map, epoch, elapsed_time = gracedb_sky_map(open(infilename, "rb"), open(opts.psd, "rb"), opts.waveform, opts.f_low, opts.min_distance, opts.max_distance, opts.prior, reference_frequency=opts.reference_frequency, nside=opts.nside)
+sky_map, epoch, elapsed_time = gracedb_sky_map(open(infilename, "rb"), open(opts.psd, "rb"), opts.waveform, opts.f_low, opts.min_distance, opts.max_distance, opts.prior, reference_frequency=opts.reference_frequency, max_inclination=opts.max_inclination, nside=opts.nside)
 
 # Write sky map
 io.write_skymap(opts.output, skymap=sky_map, gps=float(epoch))
