@@ -313,7 +313,8 @@ for i_sim_inspiral in range(n_injections):
             None, None,
             amplitude_order,
             phase_order,
-            approximant)
+            approximant,
+            None)
         hplus.epoch += end_time
         hcross.epoch += end_time
 

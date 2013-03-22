@@ -129,23 +129,10 @@ class SignalModel(object):
 
         if approximant == lalsimulation.TaylorF2:
             # Frequency-domain post-Newtonian inspiral waveform.
-            h = lalsimulation.SimInspiralChooseFDWaveform(0, 1,
+            h, _ = lalsimulation.SimInspiralChooseFDWaveform(0, 1,
                 mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
                 0, 0, 0, 0, 0, 0, f_low, 0, 1e6 * lal.LAL_PC_SI,
-                0, 0, 0, None, None, amplitude_order, 0, approximant)
-
-            # The XLALSimInspiralChooseFDWaveform API recently changed, getting
-            # a second output argument for hcross (filled with zeros for any
-            # waveform that we support right now). Support either the old API
-            # with one output argument or the new API by discarding the second
-            # of two output arguments.
-            #
-            # FIXME: Introduce a dependency on a version of lalsimulation that
-            # has the new API.
-            try:
-                h, _ = h
-            except TypeError:
-                pass
+                0, 0, 0, None, None, amplitude_order, 0, approximant, None)
 
             # Find indices of first and last nonzero samples.
             nonzero = np.nonzero(h.data.data)[0]
@@ -156,7 +143,8 @@ class SignalModel(object):
             hplus, hcross = lalsimulation.SimInspiralChooseTDWaveform(0,
                 1 / 4096, mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
                 0, 0, 0, 0, 0, 0, f_low, f_low, 1e6 * lal.LAL_PC_SI,
-                0, 0, 0, None, None, amplitude_order, phase_order, approximant)
+                0, 0, 0, None, None, amplitude_order, phase_order, approximant,
+                None)
 
             hplus.data.data += hcross.data.data
             hplus.data.data /= np.sqrt(2)

@@ -202,7 +202,8 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, ap
             None, None,
             amplitude_order,
             phase_order,
-            approximant)
+            approximant,
+            None)
 
         ht = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(-template_duration), hplus.f0, hplus.deltaT, hplus.sampleUnits, template_length)
         hf = lal.CreateCOMPLEX16FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 0, lal.lalDimensionlessUnit, template_length // 2 + 1)
