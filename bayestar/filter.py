@@ -29,7 +29,6 @@ from scipy import optimize
 # LAL imports
 import lal
 import lalsimulation
-from pylal import spawaveform
 
 # My own imports
 from .decorator import memoized
@@ -184,15 +183,13 @@ def matched_filter_real(template, psd):
 def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, approximant, amplitude_order, phase_order):
     template_length = sample_rate * template_duration
     if approximant == lalsimulation.TaylorF2:
-        f_lso = timing.get_f_lso(mass1, mass2)
-        zf = lal.CreateCOMPLEX16FrequencySeries(None,
-            lal.LIGOTimeGPS(-template_duration), 0,
-            1 / template_duration, lal.lalDimensionlessUnit,
-            template_length // 2 + 1)
-        zz = np.empty(zf.data.data.shape, dtype=zf.data.data.dtype)
-        spawaveform.waveform(mass1, mass2, phase_order,
-            1 / template_duration, 1 / sample_rate, f_low, f_lso, zz)
-        zf.data.data = zz
+        zf, _ = lalsimulation.SimInspiralChooseFDWaveform(0,
+            1 / template_duration,
+            mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
+            0, 0, 0, 0, 0, 0, f_low, 0, 1e6 * lal.LAL_PC_SI,
+            0, 0, 0, None, None, amplitude_order, phase_order, approximant,
+            None)
+        lal.ResizeCOMPLEX16FrequencySeries(zf, 0, template_length // 2 + 1)
 
         # Generate over-whitened template
         psd = lal.CreateREAL8FrequencySeries(None, zf.epoch, zf.f0, zf.deltaF,
