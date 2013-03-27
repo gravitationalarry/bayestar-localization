@@ -32,7 +32,6 @@ import lalsimulation
 
 # My own imports
 from .decorator import memoized
-from bayestar import timing
 
 
 # Useful sample units
