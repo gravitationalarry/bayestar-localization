@@ -29,6 +29,7 @@ from scipy import interpolate
 from scipy import linalg
 from scipy import optimize
 from .decorator import memoized
+from .filter import CreateForwardREAL8FFTPlan
 
 
 log = logging.getLogger('BAYESTAR')
@@ -150,7 +151,7 @@ class SignalModel(object):
             hplus.data.data /= np.sqrt(2)
 
             h = lal.CreateCOMPLEX16FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 0, lal.lalDimensionlessUnit, len(hplus.data.data) // 2 + 1)
-            plan = lal.CreateForwardREAL8FFTPlan(len(hplus.data.data), 0)
+            plan = CreateForwardREAL8FFTPlan(len(hplus.data.data), 0)
             lal.REAL8TimeFreqFFT(h, hplus, plan)
 
             f = h.f0 + len(h.data.data) * h.deltaF

@@ -32,6 +32,7 @@ import lalsimulation
 from pylal import spawaveform
 
 # My own imports
+from .decorator import memoized
 from bayestar import timing
 
 
@@ -40,6 +41,12 @@ unitInverseHertz = lal.Unit()
 unitInverseSqrtHertz = lal.Unit()
 lal.UnitInvert(unitInverseHertz, lal.lalHertzUnit)
 lal.UnitSqrt(unitInverseSqrtHertz, unitInverseHertz)
+
+
+CreateForwardCOMPLEX16FFTPlan = memoized(lal.CreateForwardCOMPLEX16FFTPlan)
+CreateForwardREAL8FFTPlan = memoized(lal.CreateForwardREAL8FFTPlan)
+CreateReverseCOMPLEX16FFTPlan = memoized(lal.CreateReverseCOMPLEX16FFTPlan)
+CreateReverseREAL8FFTPlan = memoized(lal.CreateReverseREAL8FFTPlan)
 
 
 def ceil_pow_2(number):
@@ -61,8 +68,8 @@ def fftfilt(b, x):
     nfft = int(ceil_pow_2(len(x) + len(b) - 1))
 
     # Create FFT plans.
-    forwardplan = lal.CreateForwardCOMPLEX16FFTPlan(nfft, 0)
-    reverseplan = lal.CreateReverseCOMPLEX16FFTPlan(nfft, 0)
+    forwardplan = CreateForwardCOMPLEX16FFTPlan(nfft, 0)
+    reverseplan = CreateReverseCOMPLEX16FFTPlan(nfft, 0)
 
     # Create temporary workspaces.
     workspace1 = lal.CreateCOMPLEX16Vector(nfft)
@@ -101,7 +108,7 @@ def colored_noise(epoch, duration, sample_rate, psd):
     ((duration * sample_rate) // 2 + 1) samples.
     """
     data_length = duration * sample_rate
-    plan = lal.CreateReverseREAL8FFTPlan(data_length, 0)
+    plan = CreateReverseREAL8FFTPlan(data_length, 0)
     x = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(0), 0, 0,
         lal.lalDimensionlessUnit, data_length)
     xf = lal.CreateCOMPLEX16FrequencySeries(None, epoch, 0, 1 / duration,
@@ -159,7 +166,7 @@ def matched_filter_spa(template, psd):
     fdfilter2 = add_quadrature_phase(fdfilter)
     tdfilter = lal.CreateCOMPLEX16TimeSeries(None, lal.LIGOTimeGPS(0), 0, 0,
         lal.lalDimensionlessUnit, len(fdfilter2.data.data))
-    plan = lal.CreateReverseCOMPLEX16FFTPlan(len(fdfilter2.data.data), 0)
+    plan = CreateReverseCOMPLEX16FFTPlan(len(fdfilter2.data.data), 0)
     lal.COMPLEX16FreqTimeFFT(tdfilter, fdfilter2, plan)
     return tdfilter
 
@@ -168,7 +175,7 @@ def matched_filter_real(template, psd):
     fdfilter = matched_filter_real_fd(template, psd)
     tdfilter = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(0), 0, 0,
         lal.lalDimensionlessUnit, 2 * (len(fdfilter.data.data) - 1))
-    plan = lal.CreateReverseREAL8FFTPlan(len(tdfilter.data.data), 0)
+    plan = CreateReverseREAL8FFTPlan(len(tdfilter.data.data), 0)
     lal.REAL8FreqTimeFFT(tdfilter, fdfilter, plan)
     return tdfilter
 
@@ -207,7 +214,7 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, ap
 
         ht = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(-template_duration), hplus.f0, hplus.deltaT, hplus.sampleUnits, template_length)
         hf = lal.CreateCOMPLEX16FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 0, lal.lalDimensionlessUnit, template_length // 2 + 1)
-        plan = lal.CreateForwardREAL8FFTPlan(template_length, 0)
+        plan = CreateForwardREAL8FFTPlan(template_length, 0)
 
         ht.data.data[:-len(hplus.data.data)] = 0
         ht.data.data[-len(hplus.data.data):] = hplus.data.data
