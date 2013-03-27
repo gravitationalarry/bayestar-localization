@@ -43,6 +43,7 @@ lal.UnitInvert(unitInverseHertz, lal.lalHertzUnit)
 lal.UnitSqrt(unitInverseSqrtHertz, unitInverseHertz)
 
 
+# Memoize FFT plans
 CreateForwardCOMPLEX16FFTPlan = memoized(lal.CreateForwardCOMPLEX16FFTPlan)
 CreateForwardREAL8FFTPlan = memoized(lal.CreateForwardREAL8FFTPlan)
 CreateReverseCOMPLEX16FFTPlan = memoized(lal.CreateReverseCOMPLEX16FFTPlan)
