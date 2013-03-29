@@ -107,12 +107,12 @@ if opts.reference_psd_cache is not None:
     reference_psd_cache = glue.lal.Cache.fromfilenames(opts.reference_psd_cache)
 
     @memoized
-    def reference_psds_for_filename(ifo, filename):
+    def reference_psds_for_filename(filename):
         xmldoc = ligolw_utils.load_filename(filename)
         psds = bayestar.ligolw_sky_map.read_psd_xmldoc(xmldoc)
         return dict(
             (key, timing.InterpolatedPSD(filter.abscissa(psd), psd.data.data))
-            for key, psd in psds)
+            for key, psd in psds.iteritems())
 
     def reference_psd_for_ifo_and_filename(ifo, filename):
         return reference_psds_for_filename(filename)[ifo]
