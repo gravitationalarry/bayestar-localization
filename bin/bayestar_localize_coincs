@@ -82,6 +82,13 @@ infilename = command.get_input_filename(parser, args)
 command.check_required_arguments(parser, opts, "prior")
 
 
+#
+# Logging
+#
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('BAYESTAR')
+
 # LIGO-LW XML imports.
 import glue.lal
 from glue.ligolw import utils as ligolw_utils
@@ -97,7 +104,6 @@ import bayestar.ligolw_sky_map
 # Other imports.
 import healpy as hp
 import numpy as np
-import warnings
 
 # Read injection file.
 xmldoc = ligolw_utils.load_filename(infilename)
@@ -127,8 +133,8 @@ if opts.reference_psd_cache is not None:
 
         # Display a warning unless there is exactly one matching PSD.
         if len(matching_cache_entries) != 1:
-            warnings.warn("Expected one matching cache entry, found {0}"
-                .format(len(matching_cache_entries)))
+            log.warn("Expected one matching cache entry, found %d",
+                len(matching_cache_entries))
 
         # Break any tie by taking the segment whose center is closest to
         # the requested GPS time
@@ -206,13 +212,13 @@ for sim_inspiral, sngl_inspirals in ligolw_bayestar.sim_and_sngl_inspirals_for_x
     f_low = sim_inspiral.f_lower
     if opts.f_low is not None:
         if f_low is not None:
-            warnings.warn("replacing low frequency cutoff in sim_inspiral table with value provided in '--f-low' command line argument")
+            log.warn("replacing low frequency cutoff in sim_inspiral table with value provided in '--f-low' command line argument")
         f_low = opts.f_low
 
     waveform = sim_inspiral.waveform
     if opts.waveform is not None:
         if waveform is not None:
-            warnings.warn("replacing waveform in sim_inspiral table with value provided in '--waveform' command line argument")
+            log.warn("replacing waveform in sim_inspiral table with value provided in '--waveform' command line argument")
         waveform = opts.waveform
     approximant, amplitude_order, phase_order = timing.get_approximant_and_orders_from_string(waveform)
 

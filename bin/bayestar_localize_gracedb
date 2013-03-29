@@ -69,6 +69,13 @@ infilename = command.get_input_filename(parser, args)
 command.check_required_arguments(parser, opts, "prior", "psd", "output")
 
 
+#
+# Logging
+#
+
+logging.basicConfig(level=logging.INFO)
+log = logging.getLogger('BAYESTAR')
+
 # BAYESTAR imports.
 from bayestar import io
 from bayestar.ligolw_sky_map import gracedb_sky_map
