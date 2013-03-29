@@ -78,7 +78,6 @@ command.check_required_arguments(parser, opts, 'waveform', 'template_bank')
 
 # Python standard library imports.
 import os
-import warnings
 
 # LIGO-LW XML imports.
 from glue.ligolw import ligolw
