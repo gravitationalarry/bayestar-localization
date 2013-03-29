@@ -118,13 +118,24 @@ if opts.reference_psd_cache is not None:
         return reference_psds_for_filename(filename)[ifo]
 
     def reference_psd_for_ifo_and_time(ifo, gps_time):
+        # Look up reference PSD entries in the cache for the specified
+        # detector and GPS time.
         matching_cache_entries = [entry for entry in reference_psd_cache
             if entry.description == 'reference_psd'
             and ifo in entry.observatory
             and gps_time in entry.segment]
+
+        # Display a warning unless there is exactly one matching PSD.
         if len(matching_cache_entries) != 1:
-            raise ValueError("Expected one matching cache entry, found {0}"
+            warnings.warn("Expected one matching cache entry, found {0}"
                 .format(len(matching_cache_entries)))
+
+        # Break any tie by taking the segment whose center is closest to
+        # the requested GPS time
+        _, entry = min((abs(gps_time - np.mean(entry.segment)), entry)
+            for entry in matching_cache_entries)
+
+        # Open file, parse PSD, and return.
         return reference_psd_for_ifo_and_filename(ifo, matching_cache_entries[0].path)
 
 def find_injection(sky_map, true_ra, true_dec):
