@@ -186,8 +186,7 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, ap
             1 / template_duration,
             mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
             0, 0, 0, 0, 0, 0, f_low, 0, 1e6 * lal.LAL_PC_SI,
-            0, 0, 0, None, None, amplitude_order, phase_order, approximant,
-            None)
+            0, 0, 0, None, None, amplitude_order, phase_order, approximant)
         lal.ResizeCOMPLEX16FrequencySeries(zf, 0, template_length // 2 + 1)
 
         # Generate over-whitened template
@@ -206,8 +205,7 @@ def generate_template(mass1, mass2, S, f_low, sample_rate, template_duration, ap
             None, None,
             amplitude_order,
             phase_order,
-            approximant,
-            None)
+            approximant)
 
         ht = lal.CreateREAL8TimeSeries(None, lal.LIGOTimeGPS(-template_duration), hplus.f0, hplus.deltaT, hplus.sampleUnits, template_length)
         hf = lal.CreateCOMPLEX16FrequencySeries(None, lal.LIGOTimeGPS(0), 0, 0, lal.lalDimensionlessUnit, template_length // 2 + 1)

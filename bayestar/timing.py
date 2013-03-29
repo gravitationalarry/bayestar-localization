@@ -133,7 +133,7 @@ class SignalModel(object):
             h, _ = lalsimulation.SimInspiralChooseFDWaveform(0, 1,
                 mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
                 0, 0, 0, 0, 0, 0, f_low, 0, 1e6 * lal.LAL_PC_SI,
-                0, 0, 0, None, None, amplitude_order, 0, approximant, None)
+                0, 0, 0, None, None, amplitude_order, 0, approximant)
 
             # Find indices of first and last nonzero samples.
             nonzero = np.nonzero(h.data.data)[0]
@@ -144,8 +144,7 @@ class SignalModel(object):
             hplus, hcross = lalsimulation.SimInspiralChooseTDWaveform(0,
                 1 / 4096, mass1 * lal.LAL_MSUN_SI, mass2 * lal.LAL_MSUN_SI,
                 0, 0, 0, 0, 0, 0, f_low, f_low, 1e6 * lal.LAL_PC_SI,
-                0, 0, 0, None, None, amplitude_order, phase_order, approximant,
-                None)
+                0, 0, 0, None, None, amplitude_order, phase_order, approximant)
 
             hplus.data.data += hcross.data.data
             hplus.data.data /= np.sqrt(2)
