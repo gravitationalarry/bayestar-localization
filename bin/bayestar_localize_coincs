@@ -86,6 +86,7 @@ command.check_required_arguments(parser, opts, "prior")
 # Logging
 #
 
+import logging
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('BAYESTAR')
 
