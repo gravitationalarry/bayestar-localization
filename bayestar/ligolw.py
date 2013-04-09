@@ -21,10 +21,15 @@ LIGO-LW convenience functions.
 __author__ = "Leo Singer <leo.singer@ligo.org>"
 
 
+# Python standard library imports.
+import itertools
+import operator
+
 # LIGO-LW XML imports.
 from pylal import ligolw_inspinjfind
 from glue.ligolw.utils import process as ligolw_process
 from glue.ligolw import table as ligolw_table
+from pylal import ligolw_thinca
 from glue.ligolw import lsctables
 
 
@@ -103,3 +108,44 @@ def sim_and_sngl_inspirals_for_xmldoc(xmldoc):
             for event_id, event in events_for_coinc_event_id(coinc.coinc_event_id))
 
         yield sim_inspiral, sngl_inspirals
+
+
+def coinc_and_sngl_inspirals_for_xmldoc(xmldoc):
+    """Retrieve (as a generator) all of the
+    (sngl_inspiral, sngl_inspiral, ... sngl_inspiral) tuples from coincidences
+    in a LIGO-LW XML document."""
+
+    # Look up necessary tables.
+    coinc_table = ligolw_table.get_table(xmldoc, lsctables.CoincTable.tableName)
+    coinc_def_table = ligolw_table.get_table(xmldoc, lsctables.CoincDefTable.tableName)
+    coinc_map_table = ligolw_table.get_table(xmldoc, lsctables.CoincMapTable.tableName)
+    sngl_inspiral_table = ligolw_table.get_table(xmldoc, lsctables.SnglInspiralTable.tableName)
+
+    # Look up coinc_def id.
+    sngl_sngl_coinc_def_id = coinc_def_table.get_coinc_def_id(
+        ligolw_thinca.InspiralCoincDef.search,
+        ligolw_thinca.InspiralCoincDef.search_coinc_type,
+        create_new=False)
+
+    # Indices to speed up lookups by ID.
+    key = operator.attrgetter('coinc_event_id')
+    coinc_maps_by_coinc_event_id = dict((coinc_event_id, tuple(coinc_maps))
+        for coinc_event_id, coinc_maps
+        in itertools.groupby(sorted(coinc_map_table, key=key), key=key))
+    sngl_inspirals_by_event_id = dict((sngl_inspiral.event_id, sngl_inspiral)
+        for sngl_inspiral in sngl_inspiral_table)
+
+    # Loop over all sngl_inspiral <-> sngl_inspiral coincs.
+    for coinc in coinc_table:
+        if coinc.coinc_def_id == sngl_sngl_coinc_def_id:
+            coinc_maps = coinc_maps_by_coinc_event_id[coinc.coinc_event_id]
+            yield coinc, tuple(sngl_inspirals_by_event_id[coinc_map.event_id]
+                for coinc_map in coinc_maps)
+
+
+def psd_filenames_by_process_id_for_xmldoc(xmldoc):
+    """Retrieve a dictionary mapping process_ids to reference PSD filenames."""
+    return dict((process_param.process_id, process_param.value)
+        for process_param
+        in ligolw_table.get_table(xmldoc, lsctables.ProcessParamsTable.tableName)
+        if process_param.param == '--reference-psd')
