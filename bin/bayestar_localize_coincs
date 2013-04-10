@@ -93,6 +93,7 @@ import healpy as hp
 import numpy as np
 
 # Read coinc file.
+log.info('%s:reading input XML file', infilename)
 xmldoc = ligolw_utils.load_filename(infilename)
 
 reference_psd_filenames_by_process_id = ligolw_bayestar.psd_filenames_by_process_id_for_xmldoc(xmldoc)
@@ -115,6 +116,7 @@ approximant, amplitude_order, phase_order = timing.get_approximant_and_orders_fr
 for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc(xmldoc):
 
     # Look up PSDs
+    log.info('%s:reading PSDs', coinc.coinc_event_id)
     psds = tuple(
         reference_psd_for_ifo_and_filename(sngl_inspiral.ifo,
         reference_psd_filenames_by_process_id[sngl_inspiral.process_id])
@@ -125,11 +127,13 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
     #
 
     # Time and run sky localization.
+    log.info('%s:computing TOA-only sky map', coinc.coinc_event_id)
     sky_map, epoch, elapsed_time = bayestar.ligolw_sky_map.ligolw_sky_map(
         sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
         psds=psds, reference_frequency=opts.reference_frequency,
         method="toa", nside=opts.nside)
 
+    log.info('%s:saving TOA-only sky map', coinc.coinc_event_id)
     fits.write_sky_map('%s.toa.fits.gz' % coinc.coinc_event_id,
         sky_map, gps_time=float(epoch), creator=parser.prog, runtime=elapsed_time)
 
@@ -139,11 +143,13 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
     #
 
     # Time and run sky localization.
+    log.info('%s:computing TOA+SNR sky map', coinc.coinc_event_id)
     sky_map, epoch, elapsed_time = bayestar.ligolw_sky_map.ligolw_sky_map(
         sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
         opts.min_distance, opts.max_distance, opts.prior, psds=psds,
         reference_frequency=opts.reference_frequency, method="toa_snr",
         nside=opts.nside)
 
+    log.info('%s:saving TOA+SNR sky map', coinc.coinc_event_id)
     fits.write_sky_map('%s.toa_snr.fits.gz' % coinc.coinc_event_id,
         sky_map, gps_time=float(epoch), creator=parser.prog, runtime=elapsed_time)
