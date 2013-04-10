@@ -61,7 +61,9 @@ parser = OptionParser(
         Option("--prior", choices=prior_choices, metavar="|".join(prior_choices),
             help="Distance prior (required)"),
         Option("--reference-frequency", type=float, metavar="Hz",
-            help="Shift trigger times from coalescence time to time when GW inspiral has this frequency (default=do not use)")
+            help="Shift trigger times from coalescence time to time when GW inspiral has this frequency (default=do not use)"),
+        Option("--keep-going", "-k", default=False, action="store_true",
+            help="Keep processing events if a sky map fails to converge (default=False).")
     ]
 )
 opts, args = parser.parse_args()
@@ -128,15 +130,20 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
 
     # Time and run sky localization.
     log.info('%s:computing TOA-only sky map', coinc.coinc_event_id)
-    sky_map, epoch, elapsed_time = bayestar.ligolw_sky_map.ligolw_sky_map(
-        sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
-        psds=psds, reference_frequency=opts.reference_frequency,
-        method="toa", nside=opts.nside)
-
-    log.info('%s:saving TOA-only sky map', coinc.coinc_event_id)
-    fits.write_sky_map('%s.toa.fits.gz' % int(coinc.coinc_event_id),
-        sky_map, objid=coinc.coinc_event_id, gps_time=float(epoch),
-        creator=parser.prog, runtime=elapsed_time)
+    try:
+        sky_map, epoch, elapsed_time = bayestar.ligolw_sky_map.ligolw_sky_map(
+            sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
+            psds=psds, reference_frequency=opts.reference_frequency,
+            method="toa", nside=opts.nside)
+    except ArithmeticError:
+        log.exception("%s:TOA sky localization failed", coinc.coinc_event_id)
+        if not opts.keep_going:
+            raise
+    else:
+        log.info('%s:saving TOA-only sky map', coinc.coinc_event_id)
+        fits.write_sky_map('%s.toa.fits.gz' % int(coinc.coinc_event_id),
+            sky_map, objid=coinc.coinc_event_id, gps_time=float(epoch),
+            creator=parser.prog, runtime=elapsed_time)
 
 
     #
@@ -145,13 +152,18 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
 
     # Time and run sky localization.
     log.info('%s:computing TOA+SNR sky map', coinc.coinc_event_id)
-    sky_map, epoch, elapsed_time = bayestar.ligolw_sky_map.ligolw_sky_map(
-        sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
-        opts.min_distance, opts.max_distance, opts.prior, psds=psds,
-        reference_frequency=opts.reference_frequency, method="toa_snr",
-        nside=opts.nside)
-
-    log.info('%s:saving TOA+SNR sky map', coinc.coinc_event_id)
-    fits.write_sky_map('%s.toa_snr.fits.gz' % int(coinc.coinc_event_id),
-        sky_map, objid=coinc.coinc_event_id, gps_time=float(epoch),
-        creator=parser.prog, runtime=elapsed_time)
+    try:
+        sky_map, epoch, elapsed_time = bayestar.ligolw_sky_map.ligolw_sky_map(
+            sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
+            opts.min_distance, opts.max_distance, opts.prior, psds=psds,
+            reference_frequency=opts.reference_frequency, method="toa_snr",
+            nside=opts.nside)
+    except ArithmeticError:
+        log.exception("%s:TOA+SNR sky localization failed", coinc.coinc_event_id)
+        if not opts.keep_going:
+            raise
+    else:
+        log.info('%s:saving TOA+SNR sky map', coinc.coinc_event_id)
+        fits.write_sky_map('%s.toa_snr.fits.gz' % int(coinc.coinc_event_id),
+            sky_map, objid=coinc.coinc_event_id, gps_time=float(epoch),
+            creator=parser.prog, runtime=elapsed_time)
