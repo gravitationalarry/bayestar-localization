@@ -114,6 +114,8 @@ def reference_psd_for_ifo_and_filename(ifo, filename):
 f_low = opts.f_low
 approximant, amplitude_order, phase_order = timing.get_approximant_and_orders_from_string(opts.waveform)
 
+count_sky_maps_failed = 0
+
 # Loop over all coinc_event <-> sim_inspiral coincs.
 for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc(xmldoc):
 
@@ -137,6 +139,7 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
             method="toa", nside=opts.nside)
     except ArithmeticError:
         log.exception("%s:TOA sky localization failed", coinc.coinc_event_id)
+        count_sky_maps_failed += 1
         if not opts.keep_going:
             raise
     else:
@@ -160,6 +163,7 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
             nside=opts.nside)
     except ArithmeticError:
         log.exception("%s:TOA+SNR sky localization failed", coinc.coinc_event_id)
+        count_sky_maps_failed += 1
         if not opts.keep_going:
             raise
     else:
@@ -167,3 +171,7 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
         fits.write_sky_map('%s.toa_snr.fits.gz' % int(coinc.coinc_event_id),
             sky_map, objid=coinc.coinc_event_id, gps_time=float(epoch),
             creator=parser.prog, runtime=elapsed_time)
+
+
+if count_sky_maps_failed > 0:
+    raise RuntimeError("{0} sky maps did not converge".format(count_sky_maps_failed))
