@@ -145,7 +145,7 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
     else:
         log.info('%s:saving TOA-only sky map', coinc.coinc_event_id)
         fits.write_sky_map('%s.toa.fits.gz' % int(coinc.coinc_event_id),
-            sky_map, objid=coinc.coinc_event_id, gps_time=float(epoch),
+            sky_map, objid=str(coinc.coinc_event_id), gps_time=float(epoch),
             creator=parser.prog, runtime=elapsed_time)
 
 
@@ -169,7 +169,7 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
     else:
         log.info('%s:saving TOA+SNR sky map', coinc.coinc_event_id)
         fits.write_sky_map('%s.toa_snr.fits.gz' % int(coinc.coinc_event_id),
-            sky_map, objid=coinc.coinc_event_id, gps_time=float(epoch),
+            sky_map, objid=str(coinc.coinc_event_id), gps_time=float(epoch),
             creator=parser.prog, runtime=elapsed_time)
 
 
