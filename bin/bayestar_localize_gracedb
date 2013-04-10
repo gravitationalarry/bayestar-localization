@@ -78,10 +78,10 @@ logging.basicConfig(level=logging.INFO)
 log = logging.getLogger('BAYESTAR')
 
 # BAYESTAR imports.
-from bayestar import io
+from bayestar import fits
 from bayestar.ligolw_sky_map import gracedb_sky_map
 
 sky_map, epoch, elapsed_time = gracedb_sky_map(open(infilename, "rb"), open(opts.psd, "rb"), opts.waveform, opts.f_low, opts.min_distance, opts.max_distance, opts.prior, reference_frequency=opts.reference_frequency, nside=opts.nside)
 
 # Write sky map
-io.write_skymap(opts.output, skymap=sky_map, gps=float(epoch))
+fits.write_sky_map(opts.output, sky_map, gps_time=float(epoch), creator=parser.prog)

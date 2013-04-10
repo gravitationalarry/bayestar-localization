@@ -26,11 +26,11 @@ __author__ = "Leo Singer <leo.singer@ligo.org>"
 #
 
 from optparse import Option, OptionParser
-opts, args = OptionParser(
-    description = __doc__,
-    usage = "%prog [options] [GRACEID]",
-    option_list = []
-).parse_args()
+parser = OptionParser(
+    description=__doc__,
+    usage="%prog [options] [GRACEID]"
+)
+opts, args = parser.parse_args()
 
 
 #
@@ -48,7 +48,7 @@ import tempfile
 import time
 import urlparse
 
-import bayestar.io
+import bayestar.fits
 import ligo.gracedb.logging
 import ligo.gracedb.rest
 import ligo.lvalert.utils
@@ -146,7 +146,8 @@ if alert_type == 'new':
         fitsdir = tempfile.mkdtemp()
         try:
             fitspath = os.path.join(fitsdir, "skymap.fits.gz")
-            bayestar.io.write_skymap(fitspath, skymap=sky_map, gps=float(epoch))
+            bayestar.fits.write_sky_map(fitspath, sky_map, gps_time=float(epoch),
+                creator=parser.prog, objid=str(graceid))
             response = gracedb.writeFile(graceid, fitspath)
             response_json = response.read()
             attrs = json.loads(response_json)
