@@ -29,10 +29,10 @@ is omitted, it defaults to twice the maximum effective distance among detectors.
 
 A FITS file is created for each sky map, having a filename of the form
 
-  "sim_inspiral:simulation_id:X.toa.fits.gz" or
-  "sim_inspiral:simulation_id:X.toa_snr.fits.gz"
+  "X.toa.fits.gz" or
+  "X.toa_snr.fits.gz"
 
-where X is the LIGO-LW row id of the injection and "toa" or "toa_snr" identifies
+where X is the LIGO-LW row id of the coinc and "toa" or "toa_snr" identifies
 whether the sky map accounts for TOA only or both TOA and SNR.
 """
 __author__ = "Leo Singer <leo.singer@ligo.org>"
