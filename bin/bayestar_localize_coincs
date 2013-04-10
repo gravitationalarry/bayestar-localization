@@ -104,7 +104,7 @@ def reference_psds_for_filename(filename):
     psds = bayestar.ligolw_sky_map.read_psd_xmldoc(xmldoc)
     return dict(
         (key, timing.InterpolatedPSD(filter.abscissa(psd), psd.data.data))
-        for key, psd in psds.iteritems() if key is not None)
+        for key, psd in psds.iteritems() if psd is not None)
 
 def reference_psd_for_ifo_and_filename(ifo, filename):
     return reference_psds_for_filename(filename)[ifo]
