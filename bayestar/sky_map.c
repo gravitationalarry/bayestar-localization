@@ -87,7 +87,7 @@ my_gsl_error (const char * reason, const char * file, int line, int gsl_errno)
             exception_type = PyExc_MemoryError;
             break;
         default:
-            exception_type = PyExc_RuntimeError;
+            exception_type = PyExc_ArithmeticError;
             break;
     }
     PyErr_Format(exception_type, "%s:%d: %s\n", file, line, reason);
