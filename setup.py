@@ -44,6 +44,8 @@ setup(
         )
     ],
     scripts=[
+        'bin/bayestar_aggregate_found_injections',
+        'bin/bayestar_plot_found_injections',
         'bin/bayestar_lattice_tmpltbank',
         'bin/bayestar_localize_gracedb',
         'bin/bayestar_localize_lvalert',
