@@ -63,7 +63,8 @@ import math
 import os
 import shutil
 import tempfile
-from healpy.fitsfunc import getformat, pixelfunc, standard_column_names, pf, np, read_map
+import healpy as hp
+from healpy.fitsfunc import getformat, pixelfunc, standard_column_names, pf, np
 import lal
 
 
@@ -192,6 +193,22 @@ def gps_to_iso8601(gps_time):
     return ret
 
 
+def iso8601_to_gps(iso8601):
+    """Convert an ISO 8601 date string to a floating-point GPS time in seconds."""
+    date, time = iso8601.split('T')
+    year, month, day = (int(datepart) for datepart in date.split('-'))
+    hour, minute, second = time.split(':')
+    hour = int(hour)
+    minute = int(minute)
+    second = float(second)
+    second_fraction, second = math.modf(second)
+    second = int(second)
+
+    tm = [year, month, day, hour, minute, second, -1, -1, -1]
+    gps_seconds = lal.UTCToGPS(tm)
+    return gps_seconds + second_fraction
+
+
 def gps_to_mjd(gps_time):
     """Convert a floating-point GPS time in seconds to an ISO 8601 date string."""
     gps_seconds_fraction, gps_seconds = math.modf(gps_time)
@@ -245,6 +262,64 @@ def write_sky_map(filename, prob, objid=None, url=None, instruments=None,
         column_names=('PROB',), unit='pix-1', extra_metadata=extra_metadata)
 
 
+def read_sky_map(filename):
+    prob, header = hp.read_map(filename, h=True)
+    header = dict(header)
+
+    metadata = {}
+
+    try:
+        value = header['OBJECT']
+    except KeyError:
+        pass
+    else:
+        metadata['objid'] = value
+
+    try:
+        value = header['REFERENC']
+    except KeyError:
+        pass
+    else:
+        metadata['url'] = value
+
+    try:
+        value = header['INSTRUME']
+    except KeyError:
+        pass
+    else:
+        metadata['instruments'] = value
+
+    try:
+        value = header['DATE-OBS']
+    except KeyError:
+        pass
+    else:
+        metadata['gps_time'] = iso8601_to_gps(value)
+
+    try:
+        value = header['DATE']
+    except KeyError:
+        pass
+    else:
+        metadata['gps_creation_time'] = iso8601_to_gps(value)
+
+    try:
+        value = header['CREATOR']
+    except KeyError:
+        pass
+    else:
+        metadata['creator'] = value
+
+    try:
+        value = header['RUNTIME']
+    except KeyError:
+        pass
+    else:
+        metadata['runtime'] = value
+
+    return prob, metadata
+
+
 if __name__ == '__main__':
     import healpy as hp
     import numpy as np
@@ -259,3 +334,5 @@ if __name__ == '__main__':
         creator=os.path.basename(__file__),
         url='http://www.youtube.com/watch?v=0ccKPSVQcFk',
         runtime=21.5)
+
+    print read_sky_map('test.fits.gz')
