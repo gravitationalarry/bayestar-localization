@@ -81,8 +81,6 @@ for i, log10_far in enumerate(range(log10_min_far, log10_max_far + 1)):
     plt.figure(1, figsize=(4, 4))
     plt.subplot(111, aspect=1)
     plt.subplots_adjust(bottom=0.15)
-    plt.xlim(0, 1)
-    plt.ylim(0, 1)
     plt.xlabel('searched posterior mass')
     plt.ylabel('cumulative fraction of injections')
     plt.title(title)
@@ -132,6 +130,8 @@ for i, log10_far in enumerate(range(log10_min_far, log10_max_far + 1)):
     plt.grid()
     if len(args) > 1:
         plt.legend(loc='lower right')
+    plt.xlim(0, 1)
+    plt.ylim(0, 1)
     plt.savefig('searched_prob.pdf')
     plt.close()
 
