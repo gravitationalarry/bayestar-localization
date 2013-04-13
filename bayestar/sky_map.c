@@ -71,7 +71,10 @@ static PyTypeObject premalloced_type = {
 static PyObject *premalloced_new(void *data)
 {
     premalloced_object *obj = PyObject_New(premalloced_object, &premalloced_type);
-    obj->data = data;
+    if (obj)
+        obj->data = data;
+    else
+        free(data);
     return (PyObject *) obj;
 }
 
