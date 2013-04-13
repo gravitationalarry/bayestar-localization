@@ -15,6 +15,8 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define NPY_NO_DEPRECATED_API 7
+
 #include <Python.h>
 #include <numpy/arrayobject.h>
 #include <chealpix.h>
@@ -66,11 +68,11 @@ static PyTypeObject premalloced_type = {
 };
 
 
-static premalloced_object *premalloced_new(void *data)
+static PyObject *premalloced_new(void *data)
 {
     premalloced_object *obj = PyObject_New(premalloced_object, &premalloced_type);
     obj->data = data;
-    return obj;
+    return (PyObject *) obj;
 }
 
 
@@ -94,34 +96,25 @@ my_gsl_error (const char * reason, const char * file, int line, int gsl_errno)
 }
 
 
-static PyObject *AsArrayObj(PyObject *obj, int typenum, int depth)
-{
-    return PyArray_CheckFromAny(obj,
-        PyArray_DescrFromType(typenum), depth, depth,
-        NPY_NOTSWAPPED | NPY_ELEMENTSTRIDES | NPY_CONTIGUOUS | NPY_ALIGNED,
-        NULL);
-}
-
-
 static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs)
 {
     long i;
     Py_ssize_t n;
     long nside = -1;
     long npix;
-    long nifos;
+    long nifos = 0;
     double gmst;
     PyObject *toas_obj, *toa_variances_obj, *locations_obj;
 
-    PyObject *toas_npy = NULL, *toa_variances_npy = NULL, **locations_npy = NULL;
+    PyArrayObject *toas_npy = NULL, *toa_variances_npy = NULL, **locations_npy = NULL;
 
     double *toas;
     double *toa_variances;
     const double **locations = NULL;
 
     npy_intp dims[1];
-    PyObject *out = NULL, *ret = NULL;
-    premalloced_object *premalloced = NULL;
+    PyArrayObject  *out = NULL, *ret = NULL;
+    PyObject *premalloced = NULL;
     double *P;
     gsl_error_handler_t *old_handler;
 
@@ -146,12 +139,12 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
         }
     }
 
-    toas_npy = AsArrayObj(toas_obj, NPY_DOUBLE, 1);
+    toas_npy = (PyArrayObject *) PyArray_ContiguousFromAny(toas_obj, NPY_DOUBLE, 1, 1);
     if (!toas_npy) goto fail;
     nifos = PyArray_DIM(toas_npy, 0);
     toas = PyArray_DATA(toas_npy);
 
-    toa_variances_npy = AsArrayObj(toa_variances_obj, NPY_DOUBLE, 1);
+    toa_variances_npy = (PyArrayObject *) PyArray_ContiguousFromAny(toa_variances_obj, NPY_DOUBLE, 1, 1);
     if (!toa_variances_npy) goto fail;
     if (PyArray_DIM(toa_variances_npy, 0) != nifos)
     {
@@ -186,7 +179,7 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
     {
         PyObject *obj = PySequence_GetItem(locations_obj, i);
         if (!obj) goto fail;
-        locations_npy[i] = AsArrayObj(obj, NPY_DOUBLE, 1);
+        locations_npy[i] = (PyArrayObject *) PyArray_ContiguousFromAny(obj, NPY_DOUBLE, 1, 1);
         Py_XDECREF(obj);
         if (!locations_npy[i]) goto fail;
         if (PyArray_DIM(locations_npy[i], 0) != 3)
@@ -207,10 +200,10 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
     if (!premalloced)
         goto fail;
     dims[0] = npix;
-    out = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, P);
+    out = (PyArrayObject *) PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, P);
     if (!out)
         goto fail;
-    PyArray_BASE(out) = (PyObject *) premalloced;
+    PyArray_SetBaseObject(out, premalloced);
     Py_INCREF(premalloced);
 
     ret = out;
@@ -225,7 +218,7 @@ fail:
     free(locations);
     Py_XDECREF(premalloced);
     Py_XDECREF(out);
-    return ret;
+    return (PyObject *) ret;
 };
 
 
@@ -235,12 +228,12 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     Py_ssize_t n;
     long nside = -1;
     long npix;
-    long nifos;
+    long nifos = 0;
     double gmst;
     PyObject *toas_obj, *snrs_obj, *toa_variances_obj, *responses_obj,
         *locations_obj, *horizons_obj;
 
-    PyObject *toas_npy = NULL, *snrs_npy = NULL, *toa_variances_npy = NULL, **responses_npy = NULL, **locations_npy = NULL, *horizons_npy = NULL;
+    PyArrayObject *toas_npy = NULL, *snrs_npy = NULL, *toa_variances_npy = NULL, **responses_npy = NULL, **locations_npy = NULL, *horizons_npy = NULL;
     char *prior_str = NULL;
 
     double *toas;
@@ -254,8 +247,8 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     bayestar_prior_t prior = -1;
 
     npy_intp dims[1];
-    PyObject *out = NULL, *ret = NULL;
-    premalloced_object *premalloced = NULL;
+    PyArrayObject *out = NULL, *ret = NULL;
+    PyObject *premalloced = NULL;
     double *P;
     gsl_error_handler_t *old_handler;
 
@@ -282,12 +275,12 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
         }
     }
 
-    toas_npy = AsArrayObj(toas_obj, NPY_DOUBLE, 1);
+    toas_npy = (PyArrayObject *) PyArray_ContiguousFromAny(toas_obj, NPY_DOUBLE, 1, 1);
     if (!toas_npy) goto fail;
     nifos = PyArray_DIM(toas_npy, 0);
     toas = PyArray_DATA(toas_npy);
 
-    snrs_npy = AsArrayObj(snrs_obj, NPY_DOUBLE, 1);
+    snrs_npy = (PyArrayObject *) PyArray_ContiguousFromAny(snrs_obj, NPY_DOUBLE, 1, 1);
     if (!snrs_npy) goto fail;
     if (PyArray_DIM(snrs_npy, 0) != nifos)
     {
@@ -296,7 +289,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     }
     snrs = PyArray_DATA(snrs_npy);
 
-    toa_variances_npy = AsArrayObj(toa_variances_obj, NPY_DOUBLE, 1);
+    toa_variances_npy = (PyArrayObject *) PyArray_ContiguousFromAny(toa_variances_obj, NPY_DOUBLE, 1, 1);
     if (!toa_variances_npy) goto fail;
     if (PyArray_DIM(toa_variances_npy, 0) != nifos)
     {
@@ -331,7 +324,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     {
         PyObject *obj = PySequence_GetItem(responses_obj, i);
         if (!obj) goto fail;
-        responses_npy[i] = AsArrayObj(obj, NPY_FLOAT, 2);
+        responses_npy[i] = (PyArrayObject *) PyArray_ContiguousFromAny(obj, NPY_FLOAT, 2, 2);
         Py_XDECREF(obj);
         if (!responses_npy[i]) goto fail;
         if (PyArray_DIM(responses_npy[i], 0) != 3 || PyArray_DIM(responses_npy[i], 1) != 3)
@@ -368,7 +361,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     {
         PyObject *obj = PySequence_GetItem(locations_obj, i);
         if (!obj) goto fail;
-        locations_npy[i] = AsArrayObj(obj, NPY_DOUBLE, 1);
+        locations_npy[i] = (PyArrayObject *) PyArray_ContiguousFromAny(obj, NPY_DOUBLE, 1, 1);
         Py_XDECREF(obj);
         if (!locations_npy[i]) goto fail;
         if (PyArray_DIM(locations_npy[i], 0) != 3)
@@ -379,7 +372,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
         locations[i] = PyArray_DATA(locations_npy[i]);
     }
 
-    horizons_npy = AsArrayObj(horizons_obj, NPY_DOUBLE, 1);
+    horizons_npy = (PyArrayObject *) PyArray_ContiguousFromAny(horizons_obj, NPY_DOUBLE, 1, 1);
     if (!horizons_npy) goto fail;
     if (PyArray_DIM(horizons_npy, 0) != nifos)
     {
@@ -406,10 +399,10 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     if (!premalloced)
         goto fail;
     dims[0] = npix;
-    out = PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, P);
+    out = (PyArrayObject *) PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, P);
     if (!out)
         goto fail;
-    PyArray_BASE(out) = (PyObject *) premalloced;
+    PyArray_SetBaseObject(out, premalloced);
     Py_INCREF(premalloced);
 
     ret = out;
@@ -431,7 +424,7 @@ fail:
     Py_XDECREF(horizons_npy);
     Py_XDECREF(premalloced);
     Py_XDECREF(out);
-    return ret;
+    return (PyObject *) ret;
 };
 
 
