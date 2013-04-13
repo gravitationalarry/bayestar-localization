@@ -191,8 +191,14 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
     if (!out)
         goto fail;
     Py_INCREF(premalloced);
+#ifdef PyArray_BASE
+    /* FIXME: PyArray_BASE changed from a macro to a getter function in
+     * Numpy 1.7. When we drop Numpy 1.6 support, remove this #ifdef block. */
+    PyArray_BASE(out) = premalloced;
+#else
     if (PyArray_SetBaseObject(out, premalloced))
         goto fail;
+#endif
 
     ret = out;
     out = NULL;
@@ -391,8 +397,14 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     if (!out)
         goto fail;
     Py_INCREF(premalloced);
+#ifdef PyArray_BASE
+    /* FIXME: PyArray_BASE changed from a macro to a getter function in
+     * Numpy 1.7. When we drop Numpy 1.6 support, remove this #ifdef block. */
+    PyArray_BASE(out) = premalloced;
+#else
     if (PyArray_SetBaseObject(out, premalloced))
         goto fail;
+#endif
 
     ret = out;
     out = NULL;
