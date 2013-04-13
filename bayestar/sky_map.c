@@ -206,8 +206,9 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
     out = (PyArrayObject *) PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, P);
     if (!out)
         goto fail;
-    PyArray_SetBaseObject(out, premalloced);
     Py_INCREF(premalloced);
+    if (PyArray_SetBaseObject(out, premalloced))
+        goto fail;
 
     ret = out;
     out = NULL;
@@ -405,8 +406,9 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     out = (PyArrayObject *) PyArray_SimpleNewFromData(1, dims, NPY_DOUBLE, P);
     if (!out)
         goto fail;
-    PyArray_SetBaseObject(out, premalloced);
     Py_INCREF(premalloced);
+    if (PyArray_SetBaseObject(out, premalloced))
+        goto fail;
 
     ret = out;
     out = NULL;
