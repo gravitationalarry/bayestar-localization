@@ -106,7 +106,7 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
     gsl_error_handler_t *old_handler;
 
     /* Names of arguments */
-    static char *keywords[] = {"gmst", "toas",
+    static const char *keywords[] = {"gmst", "toas",
         "toa_variances", "locations", "nside", NULL};
 
     /* Silence warning about unused parameter. */
@@ -251,7 +251,7 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     gsl_error_handler_t *old_handler;
 
     /* Names of arguments */
-    static char *keywords[] = {"gmst", "toas", "snrs",
+    static const char *keywords[] = {"gmst", "toas", "snrs",
         "toa_variances", "responses", "locations", "horizons",
         "min_distance", "max_distance", "prior", "nside", NULL};
 
