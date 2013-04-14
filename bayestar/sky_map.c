@@ -109,6 +109,9 @@ static PyObject *sky_map_tdoa(PyObject *module, PyObject *args, PyObject *kwargs
     static char *keywords[] = {"gmst", "toas",
         "toa_variances", "locations", "nside", NULL};
 
+    /* Silence warning about unused parameter. */
+    (void)module;
+
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "dOOO|l", keywords,
         &gmst, &toas_obj, &toa_variances_obj, &locations_obj, &nside))
@@ -251,6 +254,9 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     static char *keywords[] = {"gmst", "toas", "snrs",
         "toa_variances", "responses", "locations", "horizons",
         "min_distance", "max_distance", "prior", "nside", NULL};
+
+    /* Silence warning about unused parameter. */
+    (void)module;
 
     /* Parse arguments */
     if (!PyArg_ParseTupleAndKeywords(args, kwargs, "dOOOOOOdds|l", keywords,
