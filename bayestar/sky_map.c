@@ -233,7 +233,8 @@ static PyObject *sky_map_tdoa_snr(PyObject *module, PyObject *args, PyObject *kw
     double *toas;
     double *snrs;
     double *toa_variances;
-    const float **responses = NULL;
+    /* FIXME: make const; change XLALComputeDetAMResponse prototype */
+    /* const */ float **responses = NULL;
     const double **locations = NULL;
     double *horizons;
 
