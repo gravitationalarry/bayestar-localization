@@ -96,7 +96,7 @@ import lal, lalsimulation
 # BAYESTAR imports.
 from bayestar import timing
 from bayestar import filter
-import bayestar.ligolw
+from bayestar import ligolw as ligolw_bayestar
 
 # Other imports.
 import numpy as np
@@ -133,7 +133,7 @@ summary = ligolw_search_summary.append_search_summary(out_xmldoc, process,
 xmldoc = ligolw_utils.load_filename(opts.template_bank)
 
 # Determine the low frequency cutoff from the template bank file.
-template_bank_f_low = bayestar.ligolw.get_temlate_bank_f_low(xmldoc)
+template_bank_f_low = ligolw_bayestar.get_temlate_bank_f_low(xmldoc)
 
 template_bank = ligolw_table.get_table(xmldoc,
     lsctables.SnglInspiralTable.tableName)

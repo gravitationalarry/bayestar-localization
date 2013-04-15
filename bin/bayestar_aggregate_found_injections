@@ -52,7 +52,7 @@ import numpy as np
 import healpy as hp
 import sqlite3
 from pylal.progress import ProgressBar
-import bayestar.fits
+from bayestar import fits
 
 
 sql = """
@@ -133,7 +133,7 @@ db = sqlite3.connect(dbfilename)
 print 'objid,far,searched_area,searched_prob,offset,runtime'
 
 for fitsfilename in progress.iterate(fitsfilenames):
-    sky_map, metadata = bayestar.fits.read_sky_map(fitsfilename)
+    sky_map, metadata = fits.read_sky_map(fitsfilename)
 
     coinc_event_id = metadata['objid']
     try:

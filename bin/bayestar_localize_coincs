@@ -88,7 +88,7 @@ from bayestar import fits
 from bayestar import ligolw as ligolw_bayestar
 from bayestar import filter
 from bayestar import timing
-import bayestar.ligolw_sky_map
+from bayestar import ligolw_sky_map
 
 # Other imports.
 import healpy as hp
@@ -103,7 +103,7 @@ reference_psd_filenames_by_process_id = ligolw_bayestar.psd_filenames_by_process
 @memoized
 def reference_psds_for_filename(filename):
     xmldoc = ligolw_utils.load_filename(filename)
-    psds = bayestar.ligolw_sky_map.read_psd_xmldoc(xmldoc)
+    psds = ligolw_sky_map.read_psd_xmldoc(xmldoc)
     return dict(
         (key, timing.InterpolatedPSD(filter.abscissa(psd), psd.data.data))
         for key, psd in psds.iteritems() if psd is not None)
@@ -133,7 +133,7 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
     # Time and run sky localization.
     log.info('%s:computing TOA-only sky map', coinc.coinc_event_id)
     try:
-        sky_map, epoch, elapsed_time = bayestar.ligolw_sky_map.ligolw_sky_map(
+        sky_map, epoch, elapsed_time = ligolw_sky_map.ligolw_sky_map(
             sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
             psds=psds, reference_frequency=opts.reference_frequency,
             method="toa", nside=opts.nside)
@@ -156,7 +156,7 @@ for coinc, sngl_inspirals in ligolw_bayestar.coinc_and_sngl_inspirals_for_xmldoc
     # Time and run sky localization.
     log.info('%s:computing TOA+SNR sky map', coinc.coinc_event_id)
     try:
-        sky_map, epoch, elapsed_time = bayestar.ligolw_sky_map.ligolw_sky_map(
+        sky_map, epoch, elapsed_time = ligolw_sky_map.ligolw_sky_map(
             sngl_inspirals, approximant, amplitude_order, phase_order, f_low,
             opts.min_distance, opts.max_distance, opts.prior, psds=psds,
             reference_frequency=opts.reference_frequency, method="toa_snr",

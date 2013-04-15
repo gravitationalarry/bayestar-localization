@@ -48,7 +48,6 @@ import tempfile
 import time
 import urlparse
 
-import bayestar.fits
 import ligo.gracedb.logging
 import ligo.gracedb.rest
 import ligo.lvalert.utils
@@ -138,6 +137,7 @@ if alert_type == 'new':
 
         # perform sky localization
         from bayestar.ligolw_sky_map import gracedb_sky_map
+        from bayestar import fits
         log.info("starting sky localization")
         sky_map, epoch, elapsed_time = gracedb_sky_map(coinc_file, psd_file, "TaylorF2threePointFivePN", 10, prior="uniform in log distance", reference_frequency=120)
         log.info("sky localization complete")
@@ -146,7 +146,7 @@ if alert_type == 'new':
         fitsdir = tempfile.mkdtemp()
         try:
             fitspath = os.path.join(fitsdir, "skymap.fits.gz")
-            bayestar.fits.write_sky_map(fitspath, sky_map, gps_time=float(epoch),
+            fits.write_sky_map(fitspath, sky_map, gps_time=float(epoch),
                 creator=parser.prog, objid=str(graceid))
             response = gracedb.writeFile(graceid, fitspath)
             response_json = response.read()
