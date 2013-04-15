@@ -39,8 +39,7 @@ def parse_REAL8FrequencySeries(elem):
     dims = a.getElementsByTagName(ligolw.Dim.tagName)
     f0 = ligolw_param.get_param(elem, u"f0")
 
-    epoch = lal.LIGOTimeGPS()
-    lal.StrToGPS(epoch, str(t.pcdata))
+    epoch = lal.LIGOTimeGPS(str(t.pcdata))
 
     # Target units: inverse seconds
     inverse_seconds_unit = lal.Unit()
