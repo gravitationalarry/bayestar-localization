@@ -180,7 +180,6 @@ for th0, th3 in theta0_theta3:
         setattr(sngl_inspiral, validcolumn, None)
 
     # Populate the row's fields.
-    
     sngl_inspiral.event_id = sngl_inspiral_table.get_next_id()
     sngl_inspiral.mass1 = mass1
     sngl_inspiral.mass2 = mass2
