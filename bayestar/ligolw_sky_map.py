@@ -136,8 +136,7 @@ def ligolw_sky_map(sngl_inspirals, approximant, amplitude_order, phase_order, f_
 
     # Find average Greenwich mean sidereal time of event.
     mean_toa_ns = sum(toas_ns) // len(toas_ns)
-    epoch = lal.LIGOTimeGPS()
-    lal.INT8NSToGPS(epoch, long(mean_toa_ns))
+    epoch = lal.LIGOTimeGPS(0, long(mean_toa_ns))
     gmst = lal.GreenwichMeanSiderealTime(epoch)
 
     # Power spectra for each detector.
