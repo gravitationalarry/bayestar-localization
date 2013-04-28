@@ -56,7 +56,7 @@ setup(
         'bin/bayestar_localize_coincs',
         'bin/bayestar_sim_to_tmpltbank',
         'bin/ligolw_coire_to_coinc',
-        'bin/littlehope'
+        'bin/bayestar_littlehope'
     ],
     cmdclass={'build_ext': build_ext}
 )
