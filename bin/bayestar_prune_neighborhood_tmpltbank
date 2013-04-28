@@ -78,6 +78,7 @@ process = ligolw_process.register_to_xmldoc(xmldoc, parser.get_prog_name(),
 # Determine the low frequency cutoff from the template bank file.
 f_low = bayestar.ligolw.get_temlate_bank_f_low(xmldoc)
 
+# Get the SnglInspiral table.
 sngl_inspiral_table = ligolw_table.get_table(xmldoc,
     lsctables.SnglInspiralTable.tableName)
 
@@ -123,12 +124,15 @@ metric = IA - np.dot(IB, linalg.solve(ID, IB.T, sym_pos=True))
 
 
 def predicate(sngl):
+    """Return True if a template is within a 1-sigma radius of the central
+    template, False otherwise"""
     thetas = lalsimulation.SimInspiralTaylorF2RedSpinChirpTimesFromMchirpEtaChi(
         sngl.mchirp, sngl.eta, sngl.chi, f_low)
     dtheta = np.asarray(thetas) - thetas_0
     distance = np.dot(dtheta, np.dot(metric, dtheta))
     return distance <= 1
 
+# Grab the templates that are at most 1 sigma from the central (mass1, mass2).
 rows_to_keep = filter(predicate, sngl_inspiral_table)
 del sngl_inspiral_table[:]
 sngl_inspiral_table.extend(rows_to_keep)
